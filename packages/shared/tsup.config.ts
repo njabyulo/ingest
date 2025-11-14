@@ -1,0 +1,37 @@
+import { defineConfig } from "tsup";
+
+export default defineConfig({
+  entry: [
+    "src/index.ts",
+    "src/types/index.ts",
+    "src/types/sst/index.ts",
+    "src/types/workflow/index.ts",
+    "src/types/cli/index.ts",
+    "src/types/cli/commands/index.ts",
+    "src/types/cli/resources/index.ts",
+    "src/types/cli/config/index.ts",
+    "src/types/cli/logger/index.ts",
+    "src/types/cli/plugins/index.ts",
+    "src/utils/index.ts",
+    "src/utils/cli/index.ts",
+    "src/utils/cli/logger/index.ts",
+    "src/utils/cli/parser/index.ts",
+    "src/utils/cli/config/index.ts",
+    "src/utils/cli/confirmation/index.ts",
+    "src/utils/cli/remover-base/index.ts",
+    "src/utils/cli/plugin-loader/index.ts",
+    "src/utils/cli/registry/index.ts",
+    "src/utils/cli/graph/index.ts",
+    "src/utils/cli/base/index.ts",
+    "src/utils/concurrency/index.ts",
+    "src/schemas/index.ts",
+    "src/constants/index.ts",
+  ],
+  format: ["cjs", "esm"],
+  dts: true,
+  splitting: false,
+  sourcemap: true,
+  clean: true,
+  outDir: "dist",
+});
+
