@@ -1,0 +1,31 @@
+{
+  "name": "functions",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "echo 'Functions built by SST'",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "lint:code": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "lint:type": "tsc --noEmit",
+    "test": "pnpm test:unit && pnpm test:integration",
+    "test:unit": "vitest run --exclude '**/*integration*.test.ts' --passWithNoTests",
+    "test:integration": "vitest run 'src/**/*integration*.test.ts'",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
