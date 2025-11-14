@@ -28,21 +28,22 @@
   ],
   "scripts": {
     "build": "turbo build",
-    "dev": "turbo dev",
-    "lint": "turbo lint:type && turbo lint:code",
-    "lint:code": "turbo lint:code",
-    "lint:type": "turbo lint:type",
-    "lint:fix": "turbo lint:fix",
-    "test": "turbo test",
-    "test:unit": "turbo test:unit",
-    "test:e2e": "turbo test:e2e",
     "clean": "turbo clean",
     "clean:all": "turbo clean:all && rm -rf node_modules .turbo",
+    "dev": "turbo dev",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
-    "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\""
+    "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\"",
+    "lint": "turbo lint:type && turbo lint:code",
+    "lint:code": "turbo lint:code",
+    "lint:fix": "turbo lint:fix",
+    "lint:type": "turbo lint:type",
+    "test": "turbo test",
+    "test:e2e": "turbo test:e2e",
+    "test:unit": "turbo test:unit"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@types/aws-lambda": "8.10.158",
     "@types/node": "catalog:",
     "eslint": "catalog:",
     "prettier": "catalog:",
@@ -54,11 +55,8 @@
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=10.0.0"
+  },
+  "dependencies": {
+    "sst": "3.17.23"
   }
 }
-
-
-
-
-
-
