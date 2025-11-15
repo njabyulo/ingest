@@ -1,3 +1,8 @@
+# Misc
+## Personal documentation
+docs/project/
+docs/writings/
+
 # Test data and sample files
 **/public/misc/*.json
 !**/public/misc/.gitkeep
@@ -46,12 +51,7 @@ yarn-error.log*
 *.swp
 *.swo
 *~
-
-
-
-
-
-
+.cursor/
 
 # sst
 .sst
