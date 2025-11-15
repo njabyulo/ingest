@@ -8,5 +8,8 @@ export const uploadRequestFunction = new sst.aws.Function("UploadRequestFunction
   timeout: "30 seconds",
   memory: "512 MB",
   link: [bucket],
+  environment: {
+    SST_STAGE: $app.stage,
+  },
 });
 
