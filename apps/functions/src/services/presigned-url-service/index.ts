@@ -8,6 +8,7 @@ import type {
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
+import * as Constants from "@ingest/shared/constants/ingest";
 
 export interface IPresignedUrlServiceConfig {
   bucketName: string;
@@ -51,10 +52,16 @@ export class PresignedUrlService implements IPresignedUrlService {
       const expirationSeconds =
         this.config.expirationSeconds || this.defaultExpirationSeconds;
 
+      // Apply same tags as bucket to the object
+      const stage = process.env.SST_STAGE || "dev";
+      const resourceTags = Constants.getAwsResourceTags(stage);
+      const tags = Constants.formatS3Tags(resourceTags);
+
       const command = new PutObjectCommand({
         Bucket: this.config.bucketName,
         Key: key,
         ContentType: request.contentType,
+        Tagging: tags,
         Metadata: {
           originalFileName: request.fileName,
           fileSize: request.size.toString(),

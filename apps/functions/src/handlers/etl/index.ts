@@ -62,11 +62,17 @@ app.post("/upload", async (c) => {
     const fileId = randomUUID();
     const key = `pdfs/${fileId}/${fileName}`;
 
+    // Apply same tags as bucket to the object
+    const stage = process.env.SST_STAGE || "dev";
+    const resourceTags = Constants.getAwsResourceTags(stage);
+    const tags = Constants.formatS3Tags(resourceTags);
+
     const command = new PutObjectCommand({
       Bucket: Resource.IngestBucket.name,
       Key: key,
       Body: fileContent,
       ContentType: contentType,
+      Tagging: tags,
       Metadata: {
         originalFileName: fileName,
         fileSize: size.toString(),
