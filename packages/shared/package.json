@@ -2,7 +2,7 @@
   "name": "@ingest/shared",
   "version": "1.0.0",
   "private": true,
-  "description": "Shared types, utilities, schemas, and constants for SST Toolkit",
+  "description": "Shared types, utilities, schemas, and constants",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -31,11 +31,29 @@
       "require": "./dist/types/index.js",
       "default": "./dist/types/index.mjs"
     },
+    "./types/ingest": {
+      "types": "./dist/types/ingest/index.d.ts",
+      "import": "./dist/types/ingest/index.mjs",
+      "require": "./dist/types/ingest/index.js",
+      "default": "./dist/types/ingest/index.mjs"
+    },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.mjs",
       "require": "./dist/utils/index.js",
       "default": "./dist/utils/index.mjs"
+    },
+    "./utils/ingest": {
+      "types": "./dist/utils/ingest/index.d.ts",
+      "import": "./dist/utils/ingest/index.mjs",
+      "require": "./dist/utils/ingest/index.js",
+      "default": "./dist/utils/ingest/index.mjs"
+    },
+    "./constants/ingest": {
+      "types": "./dist/constants/ingest/index.d.ts",
+      "import": "./dist/constants/ingest/index.mjs",
+      "require": "./dist/constants/ingest/index.js",
+      "default": "./dist/constants/ingest/index.mjs"
     }
   },
   "scripts": {
@@ -44,7 +62,9 @@
     "lint:code": "eslint .",
     "lint:type": "tsc --noEmit",
     "lint:fix": "eslint . --fix",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .turbo",
+    "clean:all": "rm -rf .turbo node_modules dist"
   },
   "dependencies": {},
   "devDependencies": {
