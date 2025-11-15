@@ -14,10 +14,15 @@
     "test:unit": "vitest run --exclude '**/*integration*.test.ts' --passWithNoTests",
     "test:integration": "vitest run 'src/**/*integration*.test.ts'",
     "test:watch": "vitest --watch",
-    "test:coverage": "vitest --coverage"
+    "test:coverage": "vitest --coverage",
+    "clean": "rm -rf .turbo",
+    "clean:all": "rm -rf .turbo node_modules dist"
   },
   "dependencies": {
-
+    "@ingest/shared": "workspace:*",
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
+    "hono": "catalog:"
   },
   "devDependencies": {
     "@types/aws-lambda": "catalog:",
