@@ -9,5 +9,16 @@ export default $config({
       home: "aws",
     };
   },
-  async run() {},
+  async run() {
+    // Storage
+    await import("./infra/storage");
+    
+    // Compute
+    await import("./infra/compute");
+    
+    // Networking (must be after compute)
+    await import("./infra/network");
+
+    return {};
+  },
 });
