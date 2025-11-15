@@ -31,6 +31,8 @@
     "clean": "turbo clean",
     "clean:all": "turbo clean:all && rm -rf node_modules .turbo",
     "dev": "turbo dev",
+    "dev:infra:up": "sst unlock --stage dev && sst dev --stage dev --mode mono",
+    "dev:infra:down": "sst unlock --stage dev && sst remove --stage dev",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,md,json}\"",
     "lint": "turbo lint:type && turbo lint:code",
