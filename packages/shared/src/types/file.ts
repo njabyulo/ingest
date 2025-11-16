@@ -68,3 +68,24 @@ export interface IFileValidationService {
   validate(metadata: IFileMetadata): Promise<IValidationResult>;
 }
 
+export type TFileStatus = "PENDING_UPLOAD" | "UPLOADED" | "FAILED" | "DELETED";
+
+export interface IFile {
+  fileId: string;
+  userId: string;
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: TFileStatus;
+  s3Bucket: string;
+  s3Key: string;
+  createdAt: string;
+  updatedAt: string;
+  uploadedAt?: string;
+}
+
+export interface IFileRepository {
+  createFile(file: IFile): Promise<void>;
+  getFile(fileId: string, userId: string): Promise<IFile | null>;
+}
+
