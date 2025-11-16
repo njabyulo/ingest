@@ -5,6 +5,10 @@
 
 declare module "sst" {
   export interface Resource {
+    "FilesTable": {
+      "name": string
+      "type": "sst.aws.Dynamo"
+    }
     "IngestApi": {
       "type": "sst.aws.ApiGatewayV2"
       "url": string
