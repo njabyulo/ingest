@@ -1,0 +1,51 @@
+{
+  "name": "@ingest/core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Core services and repositories for the ingest application",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.mjs"
+    },
+    "./repositories": {
+      "types": "./dist/repositories/index.d.ts",
+      "import": "./dist/repositories/index.mjs",
+      "require": "./dist/repositories/index.js",
+      "default": "./dist/repositories/index.mjs"
+    },
+    "./services": {
+      "types": "./dist/services/index.d.ts",
+      "import": "./dist/services/index.mjs",
+      "require": "./dist/services/index.js",
+      "default": "./dist/services/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "lint": "pnpm lint:type && pnpm lint:code",
+    "lint:code": "eslint .",
+    "lint:type": "tsc --noEmit",
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .turbo",
+    "clean:all": "rm -rf .turbo node_modules dist"
+  },
+  "dependencies": {
+    "@ingest/shared": "workspace:*",
+    "@aws-sdk/client-s3": "catalog:",
+    "@aws-sdk/s3-request-presigner": "catalog:",
+    "@aws-sdk/client-dynamodb": "catalog:",
+    "@aws-sdk/lib-dynamodb": "catalog:"
+  },
+  "devDependencies": {
+    "tsup": "catalog:",
+    "typescript": "catalog:"
+  }
+}
+

@@ -1,0 +1,1 @@
+export * as DynamoFileRepository from "./dynamo-file-repository";
