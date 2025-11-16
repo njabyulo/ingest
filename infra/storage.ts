@@ -1,9 +1,15 @@
+// eslint-disable-next-line @typescript-eslint/triple-slash-reference
 /// <reference path="../.sst/platform/config.d.ts" />
 
-export const bucket = new sst.aws.Bucket("IngestBucket", {
-  tags: {
-    Project: "ingest",
-    Environment: $app.stage,
-    ManagedBy: "sst",
+export const bucket = new sst.aws.Bucket("IngestBucket");
+
+export const filesTable = new sst.aws.Dynamo("FilesTable", {
+  fields: {
+    PK: "string",
+    SK: "string",
   },
+  primaryIndex: {
+    hashKey: "PK",
+    rangeKey: "SK",
+  }
 });
