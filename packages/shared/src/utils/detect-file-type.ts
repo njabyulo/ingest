@@ -1,7 +1,7 @@
 import type {
   IFileTypeDetector,
   TFileType,
-} from "../../../types/ingest";
+} from "../types/file";
 
 export class FileTypeDetector implements IFileTypeDetector {
   detect(contentType: string, fileName: string): TFileType {
