@@ -2,19 +2,31 @@ import { Hono } from "hono";
 import { handle } from "hono/aws-lambda";
 import { Resource } from "sst";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
-import * as Validators from "../../validators";
-import * as Utils from "@ingest/shared/utils/ingest";
-import * as Constants from "@ingest/shared/constants/ingest";
+import * as Constants from "@ingest/shared/constants";
+import * as Utils from "@ingest/shared/utils";
+import * as Services from "@ingest/core/services";
+import * as Repositories from "@ingest/core/repositories";
 
 const s3 = new S3Client({});
+const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const app = new Hono();
 
-const sizeValidator = new Validators.SizeValidator.SizeValidator({
-  maxSizeBytes: Constants.INGEST_CONSTANTS.MAX_PDF_SIZE_BYTES,
+const sizeValidator = new Utils.ValidateFileSize.ValidateFileSize({
+  maxSizeBytes: Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES,
 });
 
-const fileTypeDetector = new Utils.FileTypeDetector.FileTypeDetector();
+const fileTypeDetector = new Utils.DetectFileType.FileTypeDetector();
+
+const fileRepository = new Repositories.DynamoFileRepository.DynamoFileRepository({
+  tableName: Resource.FilesTable.name,
+  dynamoClient,
+});
+
+// Default userId for MVP (will be replaced with auth later)
+const DEFAULT_USER_ID = "default-user";
 
 app.post("/upload", async (c) => {
   try {
@@ -64,8 +76,8 @@ app.post("/upload", async (c) => {
 
     // Apply same tags as bucket to the object
     const stage = process.env.SST_STAGE || "dev";
-    const resourceTags = Constants.getAwsResourceTags(stage);
-    const tags = Constants.formatS3Tags(resourceTags);
+    const resourceTags = Utils.Aws.getAwsResourceTags(stage);
+    const tags = Utils.Aws.formatS3Tags(resourceTags);
 
     const command = new PutObjectCommand({
       Bucket: Resource.IngestBucket.name,
@@ -92,6 +104,103 @@ app.post("/upload", async (c) => {
         message: "File uploaded successfully",
       },
       201,
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    return c.json(
+      { success: false, error: `Internal server error: ${errorMessage}` },
+      500,
+    );
+  }
+});
+
+// POST /v1/files - Request presigned URL for upload
+app.post("/v1/files", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { fileName, mimeType, fileSizeBytes } = body;
+
+    if (!fileName || !mimeType || !fileSizeBytes) {
+      return c.json(
+        { success: false, error: "Missing required fields: fileName, mimeType, fileSizeBytes" },
+        400,
+      );
+    }
+
+    const presignedUrlService = new Services.PresignedUrlService.PresignedUrlService({
+      bucketName: Resource.IngestBucket.name,
+      s3Client: s3,
+      fileTypeDetector,
+      fileRepository,
+      userId: DEFAULT_USER_ID,
+    });
+
+    const result = await presignedUrlService.generateUploadUrl({
+      fileName,
+      contentType: mimeType,
+      size: fileSizeBytes,
+    });
+
+    if (!result.success) {
+      return c.json(
+        { success: false, error: result.error },
+        400,
+      );
+    }
+
+    return c.json(
+      {
+        success: true,
+        fileId: result.fileId,
+        uploadUrl: result.uploadUrl,
+        expiresIn: result.expiresIn,
+      },
+      201,
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    return c.json(
+      { success: false, error: `Internal server error: ${errorMessage}` },
+      500,
+    );
+  }
+});
+
+// GET /v1/files/{fileId} - Get file metadata
+app.get("/v1/files/:fileId", async (c) => {
+  try {
+    const fileId = c.req.param("fileId");
+
+    if (!fileId) {
+      return c.json(
+        { success: false, error: "Missing fileId parameter" },
+        400,
+      );
+    }
+
+    const file = await fileRepository.getFile(fileId, DEFAULT_USER_ID);
+
+    if (!file) {
+      return c.json(
+        { success: false, error: "File not found" },
+        404,
+      );
+    }
+
+    return c.json(
+      {
+        success: true,
+        fileId: file.fileId,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+        status: file.status,
+        s3Key: file.s3Key,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+        uploadedAt: file.uploadedAt,
+      },
+      200,
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";

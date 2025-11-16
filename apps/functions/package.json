@@ -19,9 +19,12 @@
     "clean:all": "rm -rf .turbo node_modules dist"
   },
   "dependencies": {
+    "@ingest/core": "workspace:*",
     "@ingest/shared": "workspace:*",
     "@aws-sdk/client-s3": "catalog:",
     "@aws-sdk/s3-request-presigner": "catalog:",
+    "@aws-sdk/client-dynamodb": "catalog:",
+    "@aws-sdk/lib-dynamodb": "catalog:",
     "hono": "catalog:"
   },
   "devDependencies": {
