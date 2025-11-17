@@ -261,8 +261,10 @@ ingest/
 ├── apps/
 │   └── functions/          # Lambda handlers
 │       └── src/handlers/
-│           ├── api/                    # HTTP API request handler
-│           └── file-upload-events/     # S3 file upload event handler
+│           ├── api/
+│           │   └── files.ts            # HTTP API request handler (POST /v1/files, GET /v1/files/{fileId})
+│           └── events/
+│               └── file-upload.ts     # S3 file upload event handler
 ├── packages/
 │   ├── core/              # Business logic (services, repositories)
 │   └── shared/            # Shared types, utilities, constants
