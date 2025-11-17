@@ -11,6 +11,6 @@ export const api = new sst.aws.ApiGatewayV2("IngestApi", {
   },
 });
 
-api.route("POST /upload", uploadRequestFunction.arn);
+// File endpoints
 api.route("POST /v1/files", uploadRequestFunction.arn);
-api.route("GET /v1/files/:fileId", uploadRequestFunction.arn);
+api.route("GET /v1/files/{fileId}", uploadRequestFunction.arn);
