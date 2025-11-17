@@ -85,6 +85,8 @@ export interface IFile {
   createdAt: string;
   updatedAt: string;
   uploadedAt?: string;
+  expiresAt?: string; // ISO timestamp when presigned URL expires (for PENDING_UPLOAD files)
+  ttl?: number; // Unix epoch seconds for DynamoDB TTL (automatic deletion)
 }
 
 export interface IListFilesResult {
@@ -98,5 +100,6 @@ export interface IFileRepository {
   getFile(fileId: string, userId: string): Promise<IFile | null>;
   getFileById(fileId: string): Promise<IFile | null>;
   listFiles(userId: string, limit: number, cursor?: string): Promise<IListFilesResult>;
+  deleteExpiredPendingFiles(expiredBefore: string): Promise<number>; // Returns count of deleted files
 }
 
