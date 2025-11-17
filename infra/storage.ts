@@ -8,6 +8,8 @@ export const filesTable = new sst.aws.Dynamo("FilesTable", {
     PK: "string",
     SK: "string",
     fileId: "string",
+    status: "string",
+    expiresAt: "string",
   },
   primaryIndex: {
     hashKey: "PK",
@@ -17,7 +19,16 @@ export const filesTable = new sst.aws.Dynamo("FilesTable", {
     FileIdIndex: {
       hashKey: "fileId",
     },
+    // GSI for efficient querying of expired PENDING_UPLOAD files
+    StatusExpiresAtIndex: {
+      hashKey: "status",
+      rangeKey: "expiresAt",
+    },
   },
+  // Enable TTL for automatic deletion of expired items
+  // TTL attribute: ttl (Unix epoch seconds)
+  // DynamoDB will automatically delete items where ttl < current time
+  ttl: "ttl",
 });
 
 // Dead Letter Queue for failed S3 event processing
