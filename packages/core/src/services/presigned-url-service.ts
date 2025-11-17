@@ -3,6 +3,7 @@ import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 import * as Utils from "@ingest/shared/utils";
+import * as Constants from "@ingest/shared/constants";
 
 export interface IPresignedUrlServiceConfig {
   bucketName: string;
@@ -89,11 +90,16 @@ export class PresignedUrlService implements File.IPresignedUrlService {
         { expiresIn: expirationSeconds },
       );
 
+      // Calculate expiration timestamp
+      const expiresAt = new Date(Date.now() + expirationSeconds * 1000).toISOString();
+
       return {
         success: true,
         uploadUrl,
         fileId,
-        expiresIn: expirationSeconds,
+        expiresIn: expirationSeconds, // Keep for backward compatibility
+        expiresAt,
+        maxSizeBytes: Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES,
         // Note: Use PUT method (not GET) when uploading to the presigned URL
         method: "PUT",
       };
