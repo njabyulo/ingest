@@ -7,6 +7,7 @@ import { DynamoDBDocumentClient } from "@aws-sdk/lib-dynamodb";
 import * as Utils from "@ingest/shared/utils";
 import * as Services from "@ingest/core/services";
 import * as Repositories from "@ingest/core/repositories";
+import * as Constants from "@ingest/shared/constants";
 
 const s3 = new S3Client({});
 const dynamoClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
@@ -68,6 +69,30 @@ app.post("/v1/files", async (c) => {
       );
     }
 
+    // Validate MIME type: Only application/pdf allowed in v1
+    if (mimeType !== "application/pdf") {
+      return c.json(
+        {
+          success: false,
+          error: `Only application/pdf files are allowed in v1. Received: ${mimeType}`,
+        },
+        400,
+      );
+    }
+
+    // Validate file size
+    if (fileSizeBytes > Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES) {
+      const maxSizeMB = (Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES / (1024 * 1024)).toFixed(2);
+      const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+      return c.json(
+        {
+          success: false,
+          error: `File size ${fileSizeMB}MB exceeds maximum allowed size of ${maxSizeMB}MB`,
+        },
+        400,
+      );
+    }
+
     const result = await presignedUrlService.generateUploadUrl({
       fileName,
       contentType: mimeType,
@@ -86,7 +111,8 @@ app.post("/v1/files", async (c) => {
         success: true,
         fileId: result.fileId,
         uploadUrl: result.uploadUrl,
-        expiresIn: result.expiresIn,
+        expiresAt: result.expiresAt,
+        maxSizeBytes: result.maxSizeBytes,
         method: result.method || "PUT",
       },
       201,
