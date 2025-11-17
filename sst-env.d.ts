@@ -17,6 +17,10 @@ declare module "sst" {
       "name": string
       "type": "sst.aws.Bucket"
     }
+    "S3EventHandlerFunction": {
+      "name": string
+      "type": "sst.aws.Function"
+    }
     "UploadRequestFunction": {
       "name": string
       "type": "sst.aws.Function"

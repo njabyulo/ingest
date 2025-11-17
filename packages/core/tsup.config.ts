@@ -7,6 +7,7 @@ export default defineConfig({
     "src/repositories/dynamo-file-repository.ts",
     "src/services/index.ts",
     "src/services/presigned-url-service.ts",
+    "src/services/file-upload-service.ts",
   ],
   format: ["cjs", "esm"],
   dts: true,
