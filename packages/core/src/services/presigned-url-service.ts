@@ -43,7 +43,7 @@ export class PresignedUrlService implements File.IPresignedUrlService {
       }
 
       const fileId = randomUUID();
-      const key = `pdfs/${fileId}/${request.fileName}`;
+      const key = Utils.Aws.generateS3Key(this.config.userId, fileId, request.fileName);
       const now = new Date().toISOString();
 
       // Save metadata to DynamoDB before generating presigned URL
@@ -79,6 +79,8 @@ export class PresignedUrlService implements File.IPresignedUrlService {
           originalFileName: request.fileName,
           fileSize: request.size.toString(),
         },
+        // Don't include checksum in presigned URL - client may not calculate it correctly
+        // Checksum can be added by client if needed for verification
       });
 
       const uploadUrl = await getSignedUrl(
@@ -92,6 +94,8 @@ export class PresignedUrlService implements File.IPresignedUrlService {
         uploadUrl,
         fileId,
         expiresIn: expirationSeconds,
+        // Note: Use PUT method (not GET) when uploading to the presigned URL
+        method: "PUT",
       };
     } catch (error) {
       const errorMessage =
