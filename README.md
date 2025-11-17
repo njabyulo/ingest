@@ -175,20 +175,34 @@ const { status } = await statusResponse.json();
 
 **Endpoint:** `GET /v1/files/{fileId}`
 
+Returns file metadata including status, name, size, and timestamps. Designed for UI status display with sub-150ms p95 latency.
+
 **Response:**
 ```json
 {
   "success": true,
-  "fileId": "550e8400-e29b-41d4-a716-446655440000",
-  "fileName": "document.pdf",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "document.pdf",
   "mimeType": "application/pdf",
   "sizeBytes": 1048576,
   "status": "UPLOADED",
-  "s3Key": "uploads/userId/2024/01/15/fileId.pdf",
   "createdAt": "2024-01-15T10:00:00.000Z",
   "updatedAt": "2024-01-15T10:00:05.000Z",
   "uploadedAt": "2024-01-15T10:00:05.000Z"
 }
+```
+
+**Error Response (404):**
+```json
+{
+  "success": false,
+  "error": "File not found"
+}
+```
+
+**Example (cURL):**
+```bash
+curl https://your-api.execute-api.region.amazonaws.com/v1/files/550e8400-e29b-41d4-a716-446655440000
 ```
 
 **Status Values:**
