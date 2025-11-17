@@ -171,6 +171,50 @@ const statusResponse = await fetch(`https://your-api/v1/files/${fileId}`);
 const { status } = await statusResponse.json();
 ```
 
+### List Files
+
+**Endpoint:** `GET /v1/files?limit={limit}&cursor={cursor}`
+
+Lists files for the current user with pagination. Designed for building dashboards and file management UIs.
+
+**Query Parameters:**
+- `limit` (optional): Number of files to return. Default: 20, Maximum: 100
+- `cursor` (optional): Pagination token from previous response's `nextCursor` field
+
+**Response:**
+```json
+{
+  "success": true,
+  "files": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "document.pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 1048576,
+      "status": "UPLOADED",
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:05.000Z",
+      "uploadedAt": "2024-01-15T10:00:05.000Z"
+    }
+  ],
+  "nextCursor": "eyJTSyI6IkZJTEUjNTUwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAwIiwiUEsiOiJVU0VSI3VzZXItaWQifQ=="
+}
+```
+
+**Notes:**
+- Files are sorted by creation date (newest first)
+- `nextCursor` is only included when more results are available
+- Cursor is a base64-encoded LastEvaluatedKey token for DynamoDB pagination
+
+**Example (cURL):**
+```bash
+# First page
+curl "https://your-api.execute-api.region.amazonaws.com/v1/files?limit=10"
+
+# Next page using cursor
+curl "https://your-api.execute-api.region.amazonaws.com/v1/files?limit=10&cursor=eyJTSyI6IkZJTEUj..."
+```
+
 ### Get File Metadata
 
 **Endpoint:** `GET /v1/files/{fileId}`
