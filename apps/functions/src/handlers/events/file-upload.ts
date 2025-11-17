@@ -46,12 +46,16 @@ function extractUserIdFromKey(key: string): string | null {
 }
 
 export const handler = async (event: S3Event) => {
+  const processedRecords: Array<{ key: string; success: boolean; error?: string }> = [];
+
   for (const record of event.Records) {
+    const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
+    
     try {
-      const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
-      
       // Only process PutObject events (file uploads)
       if (record.eventName !== "ObjectCreated:Put") {
+        console.log(`Skipping non-PutObject event: ${record.eventName} for key: ${key}`);
+        processedRecords.push({ key, success: true });
         continue;
       }
       
@@ -60,7 +64,40 @@ export const handler = async (event: S3Event) => {
       const userId = extractUserIdFromKey(key);
       
       if (!fileId || !userId) {
-        console.error(`Failed to extract fileId or userId from key: ${key}`);
+        const error = `Failed to extract fileId or userId from key: ${key}`;
+        console.error(error, { key, fileId, userId });
+        processedRecords.push({ key, success: false, error });
+        continue;
+      }
+      
+      // Verify file record exists before updating (idempotency check)
+      const existingFile = await fileRepository.getFile(fileId, userId);
+      
+      if (!existingFile) {
+        const error = `File record not found for fileId: ${fileId}, userId: ${userId}, key: ${key}`;
+        console.warn(error, { fileId, userId, key });
+        processedRecords.push({ key, success: false, error });
+        continue;
+      }
+      
+      // Idempotency: Only update if status is PENDING_UPLOAD
+      // This ensures multiple events for the same file don't cause issues
+      if (existingFile.status === "UPLOADED") {
+        console.log(`File ${fileId} already marked as UPLOADED, skipping update (idempotent)`, {
+          fileId,
+          userId,
+          key,
+          currentStatus: existingFile.status,
+          uploadedAt: existingFile.uploadedAt,
+        });
+        processedRecords.push({ key, success: true });
+        continue;
+      }
+      
+      if (existingFile.status !== "PENDING_UPLOAD") {
+        const error = `File ${fileId} has unexpected status: ${existingFile.status}, expected PENDING_UPLOAD`;
+        console.warn(error, { fileId, userId, key, currentStatus: existingFile.status });
+        processedRecords.push({ key, success: false, error });
         continue;
       }
       
@@ -71,12 +108,47 @@ export const handler = async (event: S3Event) => {
         uploadedAt,
       });
       
-      console.log(`Updated file ${fileId} status to UPLOADED`);
+      console.log(`Successfully updated file ${fileId} status from PENDING_UPLOAD to UPLOADED`, {
+        fileId,
+        userId,
+        key,
+        uploadedAt,
+      });
+      
+      processedRecords.push({ key, success: true });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
-      console.error(`Error processing S3 event: ${errorMessage}`, error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      
+      console.error(`Error processing S3 event for key: ${key}`, {
+        error: errorMessage,
+        stack: errorStack,
+        key,
+        eventName: record.eventName,
+        bucket: record.s3.bucket.name,
+        objectKey: record.s3.object.key,
+      });
+      
+      processedRecords.push({ key, success: false, error: errorMessage });
       // Continue processing other records even if one fails
     }
+  }
+  
+  // Log summary of processing
+  const successCount = processedRecords.filter(r => r.success).length;
+  const failureCount = processedRecords.filter(r => !r.success).length;
+  
+  console.log(`S3 event processing complete`, {
+    totalRecords: processedRecords.length,
+    successCount,
+    failureCount,
+    records: processedRecords,
+  });
+  
+  // If there are failures, the Lambda will be marked as failed
+  // This allows DLQ to capture failed events if configured
+  if (failureCount > 0) {
+    throw new Error(`Failed to process ${failureCount} out of ${processedRecords.length} S3 event records`);
   }
 };
 
