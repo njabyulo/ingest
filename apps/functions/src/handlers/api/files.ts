@@ -126,6 +126,60 @@ app.post("/v1/files", async (c) => {
   }
 });
 
+// GET /v1/files - List files for current user with pagination
+// Query parameters: limit (default 20, max 100), cursor (optional)
+// Returns: files array, nextCursor (if more results exist)
+app.get("/v1/files", async (c) => {
+  try {
+    // Parse query parameters
+    const limitParam = c.req.query("limit");
+    const cursor = c.req.query("cursor");
+
+    // Validate and parse limit (default 20, max 100)
+    let limit = 20;
+    if (limitParam) {
+      const parsedLimit = parseInt(limitParam, 10);
+      if (isNaN(parsedLimit) || parsedLimit < 1) {
+        return c.json(
+          { success: false, error: "Invalid limit parameter. Must be a positive integer." },
+          400,
+        );
+      }
+      limit = Math.min(parsedLimit, 100); // Cap at 100
+    }
+
+    // List files for the current user
+    const result = await fileRepository.listFiles(DEFAULT_USER_ID, limit, cursor);
+
+    // Transform files to match API response format (id, name instead of fileId, fileName)
+    const files = result.files.map((file) => ({
+      id: file.fileId,
+      name: file.fileName,
+      mimeType: file.mimeType,
+      sizeBytes: file.sizeBytes,
+      status: file.status,
+      createdAt: file.createdAt,
+      updatedAt: file.updatedAt,
+      uploadedAt: file.uploadedAt,
+    }));
+
+    return c.json(
+      {
+        success: true,
+        files,
+        ...(result.nextCursor && { nextCursor: result.nextCursor }),
+      },
+      200,
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    return c.json(
+      { success: false, error: `Internal server error: ${errorMessage}` },
+      500,
+    );
+  }
+});
+
 // GET /v1/files/:fileId - Get file metadata
 // Returns: id, name, mimeType, sizeBytes, status, timestamps (createdAt, updatedAt, uploadedAt)
 // Performance: Optimized for p95 < 150ms using DynamoDB GSI query
