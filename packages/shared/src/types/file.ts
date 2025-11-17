@@ -30,7 +30,9 @@ export interface IUploadResponse {
   success: boolean;
   uploadUrl?: string;
   fileId?: string;
-  expiresIn?: number;
+  expiresIn?: number; // Deprecated: use expiresAt instead
+  expiresAt?: string; // ISO timestamp when the presigned URL expires
+  maxSizeBytes?: number; // Maximum allowed file size in bytes
   method?: string; // HTTP method to use with presigned URL (should be "PUT" for uploads)
   error?: string;
 }
