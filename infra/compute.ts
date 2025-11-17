@@ -19,7 +19,7 @@ export const s3EventHandlerFunction = new sst.aws.Function("S3EventHandlerFuncti
   runtime: "nodejs20.x",
   timeout: "30 seconds",
   memory: "512 MB",
-  link: [filesTable, s3EventDlq],
+  link: [bucket, filesTable, s3EventDlq],
   environment: {
     SST_STAGE: $app.stage,
   },
@@ -35,11 +35,12 @@ export const s3EventHandlerFunction = new sst.aws.Function("S3EventHandlerFuncti
 });
 
 // Subscribe to S3 PutObject events
+// Use the function ARN instead of handler path for proper event subscription
 bucket.notify({
   notifications: [
     {
       name: "FileUploadEvent",
-      function: "./apps/functions/src/handlers/events/file-upload.handler",
+      function: s3EventHandlerFunction.arn,
       events: ["s3:ObjectCreated:Put"],
       filterPrefix: "uploads/",
     },
