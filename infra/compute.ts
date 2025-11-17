@@ -14,3 +14,17 @@ export const uploadRequestFunction = new sst.aws.Function("UploadRequestFunction
   },
 });
 
+export const s3EventHandlerFunction = new sst.aws.Function("S3EventHandlerFunction", {
+  handler: "./apps/functions/src/handlers/s3-events/index.handler",
+  runtime: "nodejs20.x",
+  timeout: "30 seconds",
+  memory: "512 MB",
+  link: [filesTable],
+  environment: {
+    SST_STAGE: $app.stage,
+  },
+});
+
+// Subscribe to S3 PutObject events
+bucket.subscribe("s3:ObjectCreated:Put", s3EventHandlerFunction.arn);
+
