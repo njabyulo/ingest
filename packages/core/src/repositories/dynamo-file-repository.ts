@@ -158,5 +158,58 @@ export class DynamoFileRepository implements File.IFileRepository {
       uploadedAt: item.uploadedAt,
     };
   }
+
+  async listFiles(userId: string, limit: number, cursor?: string): Promise<File.IListFilesResult> {
+    // Parse cursor (LastEvaluatedKey) if provided
+    let exclusiveStartKey: Record<string, unknown> | undefined;
+    if (cursor) {
+      try {
+        exclusiveStartKey = JSON.parse(Buffer.from(cursor, "base64").toString("utf-8"));
+      } catch {
+        // Invalid cursor, ignore and start from beginning
+        exclusiveStartKey = undefined;
+      }
+    }
+
+    // Query files for the user using primary index (PK = USER#{userId})
+    const result = await this.config.dynamoClient.send(
+      new QueryCommand({
+        TableName: this.config.tableName,
+        KeyConditionExpression: "PK = :pk",
+        ExpressionAttributeValues: {
+          ":pk": `USER#${userId}`,
+        },
+        Limit: limit,
+        ExclusiveStartKey: exclusiveStartKey,
+        // Sort by SK (FILE#{fileId}) descending to get newest files first
+        ScanIndexForward: false,
+      }),
+    );
+
+    const files: File.IFile[] = (result.Items || []).map((item) => ({
+      fileId: item.fileId,
+      userId: item.userId,
+      fileName: item.fileName,
+      mimeType: item.mimeType,
+      sizeBytes: item.sizeBytes,
+      status: item.status,
+      s3Bucket: item.s3Bucket,
+      s3Key: item.s3Key,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      uploadedAt: item.uploadedAt,
+    }));
+
+    // Generate nextCursor from LastEvaluatedKey if more results exist
+    let nextCursor: string | undefined;
+    if (result.LastEvaluatedKey) {
+      nextCursor = Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64");
+    }
+
+    return {
+      files,
+      nextCursor,
+    };
+  }
 }
 
