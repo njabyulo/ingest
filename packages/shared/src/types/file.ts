@@ -87,10 +87,16 @@ export interface IFile {
   uploadedAt?: string;
 }
 
+export interface IListFilesResult {
+  files: IFile[];
+  nextCursor?: string; // Base64-encoded LastEvaluatedKey for pagination
+}
+
 export interface IFileRepository {
   createFile(file: IFile): Promise<void>;
   updateFile(fileId: string, userId: string, updates: Partial<IFile>): Promise<void>;
   getFile(fileId: string, userId: string): Promise<IFile | null>;
   getFileById(fileId: string): Promise<IFile | null>;
+  listFiles(userId: string, limit: number, cursor?: string): Promise<IListFilesResult>;
 }
 
