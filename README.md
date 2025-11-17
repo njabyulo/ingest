@@ -261,8 +261,8 @@ ingest/
 ├── apps/
 │   └── functions/          # Lambda handlers
 │       └── src/handlers/
-│           ├── etl/        # API request handler
-│           └── s3-events/  # S3 event handler
+│           ├── api/                    # HTTP API request handler
+│           └── file-upload-events/     # S3 file upload event handler
 ├── packages/
 │   ├── core/              # Business logic (services, repositories)
 │   └── shared/            # Shared types, utilities, constants
