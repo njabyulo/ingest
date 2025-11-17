@@ -20,6 +20,9 @@ export default $config({
     // Networking (must be after compute)
     await import("./infra/network");
 
+    // Web (must be after network for API URL)
+    await import("./infra/web");
+
     return {};
   },
 });
