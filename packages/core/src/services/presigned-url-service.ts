@@ -47,6 +47,12 @@ export class PresignedUrlService implements File.IPresignedUrlService {
       const key = Utils.Aws.generateS3Key(this.config.userId, fileId, request.fileName);
       const now = new Date().toISOString();
 
+      const expirationSeconds =
+        this.config.expirationSeconds || this.defaultExpirationSeconds;
+      
+      // Calculate expiration timestamp
+      const expiresAt = new Date(Date.now() + expirationSeconds * 1000).toISOString();
+
       // Save metadata to DynamoDB before generating presigned URL
       const file: File.IFile = {
         fileId,
@@ -59,12 +65,10 @@ export class PresignedUrlService implements File.IPresignedUrlService {
         s3Key: key,
         createdAt: now,
         updatedAt: now,
+        expiresAt, // Store expiration time for cleanup
       };
 
       await this.config.fileRepository.createFile(file);
-
-      const expirationSeconds =
-        this.config.expirationSeconds || this.defaultExpirationSeconds;
 
       // Apply same tags as bucket to the object
       const stage = process.env.SST_STAGE || "dev";
@@ -89,9 +93,6 @@ export class PresignedUrlService implements File.IPresignedUrlService {
         command,
         { expiresIn: expirationSeconds },
       );
-
-      // Calculate expiration timestamp
-      const expiresAt = new Date(Date.now() + expirationSeconds * 1000).toISOString();
 
       return {
         success: true,
