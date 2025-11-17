@@ -1,6 +1,16 @@
 import type * as Types from "@ingest/shared/types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+// SST injects VITE_API_URL during build and deployment via infra/web.ts
+// For local development, use: pnpm dev:sst (which uses sst bind)
+const API_URL = import.meta.env.VITE_API_URL;
+
+if (!API_URL) {
+  console.error(
+    "VITE_API_URL is not set. " +
+    "For local development, use: pnpm dev:sst (which uses sst bind). " +
+    "Or deploy infrastructure first: pnpm dev:infra:up"
+  );
+}
 
 export interface IUploadRequest {
   fileName: string;
@@ -36,6 +46,13 @@ export class ApiClient {
   private baseUrl: string;
 
   constructor(baseUrl: string = API_URL) {
+    if (!baseUrl) {
+      throw new Error(
+        "API_URL is not set. " +
+        "For local development, use: pnpm dev:sst (which uses sst bind). " +
+        "Or deploy infrastructure first: pnpm dev:infra:up"
+      );
+    }
     this.baseUrl = baseUrl;
   }
 
@@ -43,7 +60,17 @@ export class ApiClient {
    * Request a presigned URL for file upload
    */
   async requestUploadUrl(request: IUploadRequest): Promise<IUploadResponse> {
-    const response = await fetch(`${this.baseUrl}/v1/files`, {
+    if (!this.baseUrl) {
+      return {
+        success: false,
+        error: "API URL is not configured. Please ensure VITE_API_URL is set.",
+      };
+    }
+    
+    const url = `${this.baseUrl}/v1/files`;
+    console.log("[ApiClient] Requesting presigned URL:", url, request);
+    
+    const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -205,5 +232,16 @@ export class ApiClient {
   }
 }
 
-export const apiClient = new ApiClient();
+// Initialize API client - will throw if VITE_API_URL is not set
+let apiClient: ApiClient;
+try {
+  apiClient = new ApiClient();
+  console.log("[ApiClient] Initialized with baseUrl:", apiClient['baseUrl'] || 'NOT SET');
+} catch (error) {
+  console.error("[ApiClient] Failed to initialize:", error);
+  // Create a dummy client that will return errors
+  apiClient = new ApiClient('') as ApiClient;
+}
+
+export { apiClient };
 
