@@ -31,6 +31,7 @@ export interface IUploadResponse {
   uploadUrl?: string;
   fileId?: string;
   expiresIn?: number;
+  method?: string; // HTTP method to use with presigned URL (should be "PUT" for uploads)
   error?: string;
 }
 
@@ -86,6 +87,8 @@ export interface IFile {
 
 export interface IFileRepository {
   createFile(file: IFile): Promise<void>;
+  updateFile(fileId: string, userId: string, updates: Partial<IFile>): Promise<void>;
   getFile(fileId: string, userId: string): Promise<IFile | null>;
+  getFileById(fileId: string): Promise<IFile | null>;
 }
 
