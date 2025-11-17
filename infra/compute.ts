@@ -26,5 +26,14 @@ export const s3EventHandlerFunction = new sst.aws.Function("S3EventHandlerFuncti
 });
 
 // Subscribe to S3 PutObject events
-bucket.subscribe("s3:ObjectCreated:Put", s3EventHandlerFunction.arn);
+bucket.notify({
+  notifications: [
+    {
+      name: "FileUploadEvent",
+      function: "./apps/functions/src/handlers/events/file-upload.handler",
+      events: ["s3:ObjectCreated:Put"],
+      filterPrefix: "uploads/",
+    },
+  ],
+});
 
