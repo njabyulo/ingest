@@ -30,16 +30,18 @@ export interface IUploadResponse {
 
 export interface IFileMetadataResponse {
   success: boolean;
-  fileId?: string;
-  fileName?: string;
+  id?: string; // fileId (renamed to match API response)
+  name?: string; // fileName (renamed to match API response)
   mimeType?: string;
   sizeBytes?: number;
   status?: Types.File.TFileStatus;
-  s3Key?: string;
   createdAt?: string;
   updatedAt?: string;
   uploadedAt?: string;
   error?: string;
+  // Legacy fields for backward compatibility
+  fileId?: string;
+  fileName?: string;
 }
 
 export class ApiClient {
@@ -155,6 +157,7 @@ export class ApiClient {
 
   /**
    * Get file metadata by fileId
+   * Returns: id, name, mimeType, sizeBytes, status, timestamps (createdAt, updatedAt, uploadedAt)
    */
   async getFileMetadata(fileId: string): Promise<IFileMetadataResponse> {
     const response = await fetch(`${this.baseUrl}/v1/files/${fileId}`, {
@@ -181,7 +184,17 @@ export class ApiClient {
       };
     }
 
-    return await response.json();
+    const data = await response.json();
+    
+    // Add backward compatibility fields
+    if (data.id && !data.fileId) {
+      data.fileId = data.id;
+    }
+    if (data.name && !data.fileName) {
+      data.fileName = data.name;
+    }
+    
+    return data;
   }
 
   /**
