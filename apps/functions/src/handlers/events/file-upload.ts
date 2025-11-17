@@ -71,7 +71,11 @@ export const handler = async (event: S3Event) => {
       }
       
       // Verify file record exists before updating (idempotency check)
-      const existingFile = await fileRepository.getFile(fileId, userId);
+      // Use getFileById first (GSI query), fallback to getFile if needed
+      let existingFile = await fileRepository.getFileById(fileId);
+      if (!existingFile) {
+        existingFile = await fileRepository.getFile(fileId, userId);
+      }
       
       if (!existingFile) {
         const error = `File record not found for fileId: ${fileId}, userId: ${userId}, key: ${key}`;
@@ -79,6 +83,9 @@ export const handler = async (event: S3Event) => {
         processedRecords.push({ key, success: false, error });
         continue;
       }
+      
+      // Use the userId from the file record (more reliable than extracted userId)
+      const fileUserId = existingFile.userId;
       
       // Idempotency: Only update if status is PENDING_UPLOAD
       // This ensures multiple events for the same file don't cause issues
@@ -103,14 +110,14 @@ export const handler = async (event: S3Event) => {
       
       // Update file status to UPLOADED
       const uploadedAt = new Date().toISOString();
-      await fileRepository.updateFile(fileId, userId, {
+      await fileRepository.updateFile(fileId, fileUserId, {
         status: "UPLOADED",
         uploadedAt,
       });
       
       console.log(`Successfully updated file ${fileId} status from PENDING_UPLOAD to UPLOADED`, {
         fileId,
-        userId,
+        userId: fileUserId,
         key,
         uploadedAt,
       });
