@@ -14,14 +14,20 @@ export default $config({
     // Storage
     await import("./infra/storage");
     
-    // Compute
+    // Events (DLQ, EventBridge, etc.)
+    await import("./infra/events");
+    
+    // Compute (Lambda functions)
     await import("./infra/compute");
     
-    // Networking (must be after compute)
-    await import("./infra/network");
-
-    // Web (must be after network for API URL)
-    await import("./infra/web");
+    // Networking - API Gateway (must be after compute for function ARNs)
+    await import("./infra/network/api");
+    
+    // Networking - Routes (must be after both compute and network/api)
+    await import("./infra/network/routes");
+    
+    // Frontend (must be after network for API URL)
+    await import("./infra/frontend");
 
     return {};
   },
