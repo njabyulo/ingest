@@ -29,9 +29,32 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
-  const handleUpload = useCallback(async (fileItemId: string) => {
-    const fileItem = files.find((f) => f.id === fileItemId);
-    if (!fileItem) return;
+  const handleUpload = useCallback(async (fileItemId: string, file?: File) => {
+    // Use the file parameter if provided, otherwise find from state
+    let fileItem: FileItem | undefined;
+    if (file) {
+      // Create fileItem from provided file
+      fileItem = {
+        id: fileItemId,
+        file,
+        status: "pending",
+        progress: 0,
+      };
+    } else {
+      // Find from current state
+      setFiles((prev) => {
+        const found = prev.find((f) => f.id === fileItemId);
+        if (found) {
+          fileItem = found;
+        }
+        return prev;
+      });
+    }
+
+    if (!fileItem) {
+      console.error("[FileUpload] File item not found for ID:", fileItemId);
+      return;
+    }
 
     // Update status to uploading
     setFiles((prev) =>
@@ -41,6 +64,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     );
 
     try {
+      console.log("[FileUpload] Starting upload for:", fileItem.file.name, fileItem.file.size);
       // Track real upload progress
       const result = await apiClient.uploadFile(fileItem.file, (progress) => {
         setFiles((prev) =>
@@ -93,7 +117,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         )
       );
     }
-  }, [files, onUploadComplete]);
+  }, [onUploadComplete]);
 
   const handleFileSelect = useCallback((selectedFiles: FileList | File[]) => {
     const fileArray = Array.from(selectedFiles);
@@ -123,9 +147,9 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
       setFiles((prev) => [...prev, fileItem]);
       
-      // Auto-upload when file is added
+      // Auto-upload when file is added - pass file directly to avoid closure issue
       setTimeout(() => {
-        handleUpload(fileItem.id);
+        handleUpload(fileItem.id, file);
       }, 100);
     });
   }, [handleUpload]);
