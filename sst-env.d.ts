@@ -17,6 +17,10 @@ declare module "sst" {
       "name": string
       "type": "sst.aws.Bucket"
     }
+    "S3EventDlq": {
+      "type": "sst.aws.Queue"
+      "url": string
+    }
     "S3EventHandlerFunction": {
       "name": string
       "type": "sst.aws.Function"
