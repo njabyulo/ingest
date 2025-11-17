@@ -4,7 +4,7 @@
 import { bucket, filesTable } from "./storage";
 
 export const uploadRequestFunction = new sst.aws.Function("UploadRequestFunction", {
-  handler: "./apps/functions/src/handlers/etl/index.handler",
+  handler: "./apps/functions/src/handlers/api/index.handler",
   runtime: "nodejs20.x",
   timeout: "30 seconds",
   memory: "512 MB",
@@ -15,7 +15,7 @@ export const uploadRequestFunction = new sst.aws.Function("UploadRequestFunction
 });
 
 export const s3EventHandlerFunction = new sst.aws.Function("S3EventHandlerFunction", {
-  handler: "./apps/functions/src/handlers/s3-events/index.handler",
+  handler: "./apps/functions/src/handlers/file-upload-events/index.handler",
   runtime: "nodejs20.x",
   timeout: "30 seconds",
   memory: "512 MB",
