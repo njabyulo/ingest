@@ -1,5 +1,5 @@
 import type { File } from "@ingest/shared/types";
-import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, GetCommand, QueryCommand, UpdateCommand, ScanCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 
 export interface IDynamoFileRepositoryConfig {
   tableName: string;
@@ -11,6 +11,18 @@ export class DynamoFileRepository implements File.IFileRepository {
 
   async createFile(file: File.IFile): Promise<void> {
     const now = new Date().toISOString();
+    
+    // Calculate TTL (Unix epoch seconds) for DynamoDB automatic deletion
+    // Only set TTL for PENDING_UPLOAD files that have expiresAt
+    let ttl: number | undefined;
+    if (file.status === "PENDING_UPLOAD" && file.expiresAt) {
+      // Convert ISO timestamp to Unix epoch seconds
+      // Add 48 hours buffer to account for DynamoDB TTL deletion timing (typically within 48h)
+      const expiresAtDate = new Date(file.expiresAt);
+      const ttlDate = new Date(expiresAtDate.getTime() + 48 * 60 * 60 * 1000); // +48 hours
+      ttl = Math.floor(ttlDate.getTime() / 1000); // Convert to Unix epoch seconds
+    }
+    
     const item = {
       PK: `USER#${file.userId}`,
       SK: `FILE#${file.fileId}`,
@@ -25,6 +37,8 @@ export class DynamoFileRepository implements File.IFileRepository {
       createdAt: file.createdAt || now,
       updatedAt: file.updatedAt || now,
       ...(file.uploadedAt && { uploadedAt: file.uploadedAt }),
+      ...(file.expiresAt && { expiresAt: file.expiresAt }),
+      ...(ttl && { ttl }), // Set TTL for automatic deletion
     };
 
     await this.config.dynamoClient.send(
@@ -122,6 +136,8 @@ export class DynamoFileRepository implements File.IFileRepository {
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       uploadedAt: item.uploadedAt,
+      expiresAt: item.expiresAt,
+      ttl: item.ttl,
     };
   }
 
@@ -156,6 +172,8 @@ export class DynamoFileRepository implements File.IFileRepository {
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       uploadedAt: item.uploadedAt,
+      expiresAt: item.expiresAt,
+      ttl: item.ttl,
     };
   }
 
@@ -198,6 +216,8 @@ export class DynamoFileRepository implements File.IFileRepository {
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
       uploadedAt: item.uploadedAt,
+      expiresAt: item.expiresAt,
+      ttl: item.ttl,
     }));
 
     // Generate nextCursor from LastEvaluatedKey if more results exist
@@ -210,6 +230,94 @@ export class DynamoFileRepository implements File.IFileRepository {
       files,
       nextCursor,
     };
+  }
+
+  async deleteExpiredPendingFiles(expiredBefore: string): Promise<number> {
+    // Use GSI Query instead of Scan for efficient querying
+    // Query PENDING_UPLOAD files with expiresAt < expiredBefore
+    // This is much more efficient than scanning the entire table
+    let deletedCount = 0;
+    let lastEvaluatedKey: Record<string, unknown> | undefined;
+
+    do {
+      // Query using StatusExpiresAtIndex GSI
+      const queryResult = await this.config.dynamoClient.send(
+        new QueryCommand({
+          TableName: this.config.tableName,
+          IndexName: "StatusExpiresAtIndex",
+          KeyConditionExpression: "#status = :status AND expiresAt < :expiredBefore",
+          ExpressionAttributeNames: {
+            "#status": "status",
+          },
+          ExpressionAttributeValues: {
+            ":status": "PENDING_UPLOAD",
+            ":expiredBefore": expiredBefore,
+          },
+          ExclusiveStartKey: lastEvaluatedKey,
+        }),
+      );
+
+      // Delete each expired file
+      if (queryResult.Items && queryResult.Items.length > 0) {
+        for (const item of queryResult.Items) {
+          try {
+            await this.config.dynamoClient.send(
+              new DeleteCommand({
+                TableName: this.config.tableName,
+                Key: {
+                  PK: item.PK,
+                  SK: item.SK,
+                },
+              }),
+            );
+            deletedCount++;
+          } catch (error) {
+            console.error(`Failed to delete expired file ${item.fileId}:`, error);
+            // Continue with other files even if one fails
+          }
+        }
+      }
+
+      lastEvaluatedKey = queryResult.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+
+    // Also handle old records without expiresAt (one-time cleanup)
+    // These won't be caught by the GSI query, so we do a limited scan for them
+    // This is a one-time operation for migration purposes
+    const oldRecordsScan = await this.config.dynamoClient.send(
+      new ScanCommand({
+        TableName: this.config.tableName,
+        FilterExpression: "#status = :status AND attribute_not_exists(expiresAt)",
+        ExpressionAttributeNames: {
+          "#status": "status",
+        },
+        ExpressionAttributeValues: {
+          ":status": "PENDING_UPLOAD",
+        },
+        Limit: 100, // Limit to avoid expensive full table scan
+      }),
+    );
+
+    if (oldRecordsScan.Items && oldRecordsScan.Items.length > 0) {
+      for (const item of oldRecordsScan.Items) {
+        try {
+          await this.config.dynamoClient.send(
+            new DeleteCommand({
+              TableName: this.config.tableName,
+              Key: {
+                PK: item.PK,
+                SK: item.SK,
+              },
+            }),
+          );
+          deletedCount++;
+        } catch (error) {
+          console.error(`Failed to delete old expired file ${item.fileId}:`, error);
+        }
+      }
+    }
+
+    return deletedCount;
   }
 }
 
