@@ -22,23 +22,32 @@ export function formatS3Tags(tags: Record<string, string>): string {
 }
 
 /**
- * Generates S3 key pattern: uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf
+ * Generates S3 key pattern with type-based prefix: {type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}
+ * @param fileType - File type ("pdf" or "image")
  * @param userId - User ID
  * @param fileId - File ID
  * @param fileName - Original file name (used to extract extension)
  * @returns S3 key string
  */
-export function generateS3Key(userId: string, fileId: string, fileName: string): string {
+export function generateS3Key(
+  fileType: "pdf" | "image",
+  userId: string,
+  fileId: string,
+  fileName: string,
+): string {
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   
-  // Extract file extension from fileName, default to .pdf
+  // Extract file extension from fileName
   const extension = fileName.includes(".") 
     ? fileName.substring(fileName.lastIndexOf("."))
-    : ".pdf";
+    : fileType === "pdf" ? ".pdf" : ".jpg";
   
-  return `uploads/${userId}/${year}/${month}/${day}/${fileId}${extension}`;
+  // Use type-based prefix: pdf/ or images/
+  const typePrefix = fileType === "pdf" ? "pdf" : "images";
+  
+  return `${typePrefix}/${userId}/${year}/${month}/${day}/${fileId}${extension}`;
 }
 
