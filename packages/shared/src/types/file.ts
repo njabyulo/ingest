@@ -37,10 +37,24 @@ export interface IUploadResponse {
   error?: string;
 }
 
+export interface IDownloadResponse {
+  success: boolean;
+  downloadUrl?: string;
+  fileName?: string;
+  expiresAt?: string;
+  error?: string;
+}
+
 export interface IPresignedUrlService {
   generateUploadUrl(
     request: IUploadRequest,
   ): Promise<IUploadResponse>;
+  generateDownloadUrl(
+    fileId: string,
+    fileName: string,
+    s3Key: string,
+    expirationSeconds?: number,
+  ): Promise<IDownloadResponse>;
 }
 
 export interface IFileUploadResult {
@@ -179,6 +193,17 @@ export interface IApiListFilesResponse {
 export interface IApiErrorResponse {
   success: false;
   error: string;
+}
+
+/**
+ * Response from GET /v1/files/:fileId/download (download URL response)
+ */
+export interface IApiDownloadResponse {
+  success: boolean;
+  downloadUrl?: string;
+  fileName?: string;
+  expiresAt?: string;
+  error?: string;
 }
 
 // UI-specific types (for frontend state management)

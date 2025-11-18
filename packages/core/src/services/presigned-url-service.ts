@@ -1,5 +1,5 @@
 import type { File } from "@ingest/shared/types";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { randomUUID } from "crypto";
 import * as Utils from "@ingest/shared/utils";
@@ -110,6 +110,44 @@ export class PresignedUrlService implements File.IPresignedUrlService {
       return {
         success: false,
         error: `Failed to generate upload URL: ${errorMessage}`,
+      };
+    }
+  }
+
+  async generateDownloadUrl(
+    _fileId: string,
+    fileName: string,
+    s3Key: string,
+    expirationSeconds?: number,
+  ): Promise<File.IDownloadResponse> {
+    try {
+      const expiration = expirationSeconds || this.defaultExpirationSeconds;
+      const expiresAt = new Date(Date.now() + expiration * 1000).toISOString();
+
+      const command = new GetObjectCommand({
+        Bucket: this.config.bucketName,
+        Key: s3Key,
+        ResponseContentDisposition: `attachment; filename="${fileName}"`,
+      });
+
+      const downloadUrl = await getSignedUrl(
+        this.config.s3Client,
+        command,
+        { expiresIn: expiration },
+      );
+
+      return {
+        success: true,
+        downloadUrl,
+        fileName,
+        expiresAt,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error occurred";
+      return {
+        success: false,
+        error: `Failed to generate download URL: ${errorMessage}`,
       };
     }
   }
