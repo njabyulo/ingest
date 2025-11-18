@@ -8,12 +8,14 @@ A production-ready, serverless file ingestion system built with TypeScript, Hono
 - **Presigned URL Downloads** - Secure file downloads with time-limited presigned URLs
 - **Metadata Tracking** - Full file metadata persistence in DynamoDB with status tracking
 - **Event-Driven Status Updates** - Automatic status updates via S3 event notifications
-- **Date-Organized Storage** - Files stored at `uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf`
+- **Date-Organized Storage** - Files stored with type-based prefixes: `pdf/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf` or `images/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}`
 - **Type-Safe Architecture** - Full TypeScript with interface-based dependency injection
 - **Serverless-First** - Built on AWS Lambda, S3, DynamoDB, and API Gateway
-- **Modern Web UI** - React + Vite frontend with real-time upload progress tracking and file management
-- **Real Progress Tracking** - XMLHttpRequest-based upload progress with visual feedback
-- **File Listing & Download** - Browse uploaded files and download them securely
+- **Modern Web UI** - React 19 + Vite frontend with feature-based architecture
+- **Real Progress Tracking** - XMLHttpRequest-based upload progress with toast notifications
+- **File Listing & Download** - Browse uploaded files with pagination, sorting, and secure downloads
+- **Automatic Status Polling** - Background polling for pending uploads (2s interval)
+- **Feature-Based Architecture** - Organized codebase with shared packages and catalog dependencies
 
 ## High-Level Architecture
 
@@ -76,9 +78,13 @@ The system follows a serverless, event-driven architecture built on AWS. Files a
 ### Key Components
 
 **Frontend Layer:**
-- **Web Application** - React + Vite SPA with drag-and-drop file upload
+- **Web Application** - React 19 + Vite SPA with feature-based architecture
+- **File Upload** - Direct file selector with toast notifications (Sonner)
 - **Real-time Progress** - XMLHttpRequest-based upload progress tracking
+- **File Management** - List, sort (name/date/size), paginate, and download files
+- **Status Polling** - Automatic background polling for pending uploads
 - **API Client** - Type-safe client with error handling
+- **Components** - Feature-based structure: `features/files/`, `features/upload/`
 
 **API Layer:**
 - **API Gateway v2** - HTTP API with CORS, rate limiting
@@ -239,7 +245,7 @@ curl -X POST ${API_URL}/v1/files \
 {
   "success": true,
   "fileId": "550e8400-e29b-41d4-a716-446655440000",
-  "uploadUrl": "https://bucket.s3.amazonaws.com/uploads/...",
+  "uploadUrl": "https://bucket.s3.amazonaws.com/pdf/...",
   "expiresAt": "2024-01-15T10:05:00.000Z",
   "expiresIn": 300,
   "maxSizeBytes": 10485760,
@@ -253,7 +259,7 @@ curl -X POST ${API_URL}/v1/files \
 
 ```bash
 # Extract uploadUrl from previous response
-UPLOAD_URL="https://bucket.s3.amazonaws.com/uploads/..."
+UPLOAD_URL="https://bucket.s3.amazonaws.com/pdf/..."
 
 # Upload file directly to S3
 curl -X PUT "${UPLOAD_URL}" \
@@ -372,7 +378,7 @@ curl "${API_URL}/v1/files/${FILE_ID}/download"
 ```json
 {
   "success": true,
-  "downloadUrl": "https://bucket.s3.amazonaws.com/uploads/...?X-Amz-Algorithm=...",
+  "downloadUrl": "https://bucket.s3.amazonaws.com/pdf/...?X-Amz-Algorithm=...",
   "fileName": "document.pdf",
   "expiresAt": "2024-01-15T10:10:00.000Z"
 }
@@ -381,7 +387,7 @@ curl "${API_URL}/v1/files/${FILE_ID}/download"
 **Download the file:**
 ```bash
 # Use the downloadUrl from the response
-DOWNLOAD_URL="https://bucket.s3.amazonaws.com/uploads/...?X-Amz-Algorithm=..."
+DOWNLOAD_URL="https://bucket.s3.amazonaws.com/pdf/...?X-Amz-Algorithm=..."
 
 # Download the file
 curl -L "${DOWNLOAD_URL}" -o document.pdf
@@ -427,10 +433,10 @@ const { status } = await statusResponse.json();
 ### API Endpoints Summary
 
 **Available Endpoints:**
-- `POST /v1/files` - Request presigned URL for upload
+- `POST /v1/files` - Request presigned URL for upload (PDF only in v1)
 - `GET /v1/files` - List files with pagination (`?limit={limit}&cursor={cursor}`)
 - `GET /v1/files/{fileId}` - Get file metadata by ID
-- `GET /v1/files/{fileId}/download` - Get presigned download URL
+- `GET /v1/files/{fileId}/download` - Get presigned download URL (UPLOADED files only)
 
 **Status Values:**
 - `PENDING_UPLOAD` - Presigned URL generated, awaiting upload
@@ -453,12 +459,17 @@ The project includes a production-ready React frontend with:
 - 10MB file size limit enforcement
 
 **Complete Upload Flow:**
-1. User selects or drags a PDF file
-2. File is validated (type and size)
-3. Presigned URL is requested from the API
-4. File is uploaded directly to S3 with progress tracking
-5. Status updates automatically when upload completes
-6. S3 event triggers Lambda to update DynamoDB status to `UPLOADED`
+1. User clicks "Upload" button → File selector opens immediately
+2. User selects file(s) → File is validated (type and size)
+3. Toast notification shows upload progress (0% → 100%)
+4. Presigned URL is requested from the API (`POST /v1/files`)
+5. File is uploaded directly to S3 with real-time progress tracking
+6. Toast updates with progress percentage and bytes transferred
+7. On completion, success toast is shown
+8. File appears in list immediately (optimistic update)
+9. S3 event triggers Lambda to update DynamoDB status to `UPLOADED`
+10. Background polling (2s interval) updates status automatically
+11. Status changes from "Uploading..." to "Uploaded" in UI
 
 ```bash
 # Deploy the full stack (API + Web)
@@ -610,25 +621,42 @@ ingest/
 │   ├── functions/          # Lambda handlers
 │   │   └── src/handlers/
 │   │       ├── api/
-│   │       │   └── files.ts            # HTTP API request handler (POST /v1/files, GET /v1/files/{fileId})
+│   │       │   └── files.ts            # HTTP API handler (POST/GET /v1/files, download)
 │   │       └── events/
 │   │           └── file-upload.ts     # S3 file upload event handler
 │   └── web/                # React + Vite frontend application
 │       ├── src/
+│       │   ├── features/               # Feature-based architecture
+│       │   │   ├── files/             # File listing, sorting, polling, download
+│       │   │   │   ├── components/    # FileList, FileCard, FileGrid, FileListHeader
+│       │   │   │   └── hooks/         # useFileList, useFilePolling, useFileSorting, useFileDownload
+│       │   │   └── upload/            # File upload
+│       │   │       └── hooks/         # useFileUpload
 │       │   ├── components/
-│       │   │   ├── FileUpload.tsx     # Main file upload component
-│       │   │   └── ui/                # shadcn/ui components
-│       │   └── lib/
-│       │       └── api.ts             # API client with progress tracking
+│       │   │   ├── common/            # ErrorBoundary, LoadingState, EmptyState, ErrorState
+│       │   │   ├── layout/           # SideBar, Wrapper
+│       │   │   └── ui/               # shadcn/ui components + Sonner
+│       │   ├── lib/
+│       │   │   └── api.ts             # API client with progress tracking
+│       │   └── App.tsx                # Main app component
 │       └── package.json
 ├── packages/
 │   ├── core/              # Business logic (services, repositories)
+│   │   └── src/
+│   │       ├── services/              # PresignedUrlService, FileUploadService
+│   │       └── repositories/         # DynamoFileRepository
 │   └── shared/            # Shared types, utilities, constants
-├── infra/                 # SST infrastructure definitions
-│   ├── compute.ts         # Lambda functions
-│   ├── network.ts         # API Gateway
-│   ├── storage.ts         # S3 & DynamoDB
-│   └── web.ts             # Static site deployment
+│       └── src/
+│           ├── types/                 # File types, UI types, validator types
+│           ├── utils/                 # Formatters, AWS helpers, file type detection
+│           ├── constants/             # File constants, sort options
+│           └── schemas/               # Zod schemas (future)
+├── infra/                 # SST infrastructure (domain-based)
+│   ├── storage/           # S3 & DynamoDB
+│   ├── compute/           # Lambda functions
+│   ├── network/           # API Gateway & routes
+│   ├── events/            # SQS queues
+│   └── frontend/          # Static site deployment
 └── docs/                  # Documentation
 ```
 
@@ -641,9 +669,12 @@ Edit `packages/shared/src/constants/file.ts`:
 ```typescript
 export const FILE_CONSTANTS = {
   MAX_PDF_SIZE_BYTES: 10 * 1024 * 1024, // 10 MB
+  MAX_IMAGE_SIZE_BYTES: 5 * 1024 * 1024, // 5 MB
   // ...
 };
 ```
+
+**Note:** Backend API currently only accepts PDFs (application/pdf) in v1. Frontend supports PDF, JPEG, and PNG, but non-PDF uploads will be rejected by the API.
 
 ### Presigned URL Expiration
 
@@ -658,7 +689,9 @@ private readonly defaultExpirationSeconds = 300; // 5 minutes
 The S3 key pattern is defined in `packages/shared/src/utils/aws.ts`:
 
 ```typescript
-// Pattern: uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf
+// Pattern: {type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{extension}
+// Where {type} is either "pdf" or "images"
+// Extension is extracted from original filename
 ```
 
 ## Development
@@ -720,29 +753,42 @@ The web application uses:
 - **Tailwind CSS v4** for styling
 - **Framer Motion** for animations
 - **shadcn/ui** for UI components
+- **Sonner** for toast notifications
 - **XMLHttpRequest** for real upload progress tracking
 
+**Architecture:**
+- Feature-based structure (`features/files/`, `features/upload/`)
+- Custom hooks for business logic (useFileList, useFileUpload, useFilePolling, etc.)
+- Presentational components (FileCard, FileGrid, FileListHeader)
+- Container components (FileList)
+- Shared components (ErrorBoundary, LoadingState, EmptyState, ErrorState)
+
 Key features:
-- Real-time upload progress with visual progress bar
-- Drag-and-drop file upload
-- File listing with pagination and sorting
+- Direct file selector (opens immediately, no dialog)
+- Real-time upload progress with toast notifications
+- Automatic status polling for pending uploads (2s interval)
+- File listing with pagination (cursor-based) and sorting (name/date/size)
 - Secure file downloads via presigned URLs
-- PDF-only validation (v1)
-- 10MB file size limit
+- PDF-only validation in backend (v1) - frontend supports PDF, JPEG, PNG
+- 10MB file size limit for PDFs, 5MB for images
 - Error handling with clear messaging
-- Modern Drive-like UI with file management
+- Modern Drive-like UI with sidebar navigation
 
 ## Roadmap
 
 - [x] File listing and query endpoints
 - [x] File download endpoints
+- [x] Automatic status polling in web UI
+- [x] Toast notifications for upload feedback
+- [x] File sorting (name/date/size)
+- [ ] Image support in backend API (frontend ready)
 - [ ] File validation after upload (verify metadata matches)
 - [ ] Cleanup mechanism for abandoned uploads
 - [ ] PDF text extraction
 - [ ] Basic search over uploaded documents
-- [ ] Multi-file type support (images, etc.)
 - [ ] User authentication and authorization
 - [ ] Batch upload support
+- [ ] File deletion endpoints
 
 ## Testing
 
@@ -764,7 +810,8 @@ Key features:
 
 3. **Verify S3 upload:**
    ```bash
-   AWS_PROFILE=your-profile aws s3 ls s3://your-bucket/uploads/ --recursive
+   AWS_PROFILE=your-profile aws s3 ls s3://your-bucket/pdf/ --recursive
+   AWS_PROFILE=your-profile aws s3 ls s3://your-bucket/images/ --recursive
    ```
 
 4. **Verify DynamoDB metadata:**
