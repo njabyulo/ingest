@@ -12,16 +12,16 @@ const fileRepository = new Repositories.DynamoFileRepository.DynamoFileRepositor
 });
 
 /**
- * Extracts fileId from S3 key pattern: uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf
+ * Extracts fileId from S3 key pattern: {type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}
  */
 function extractFileIdFromKey(key: string): string | null {
-  // Pattern: uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf
+  // Pattern: {type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}
   const parts = key.split("/");
-  if (parts.length < 5) {
+  if (parts.length < 6) {
     return null;
   }
   
-  // Last part is {fileId}.pdf, extract fileId
+  // Last part is {fileId}.{ext}, extract fileId
   const fileName = parts[parts.length - 1];
   const lastDotIndex = fileName.lastIndexOf(".");
   if (lastDotIndex === -1) {
@@ -32,24 +32,33 @@ function extractFileIdFromKey(key: string): string | null {
 }
 
 /**
- * Extracts userId from S3 key pattern: uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf
+ * Extracts userId from S3 key pattern: {type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}
  */
 function extractUserIdFromKey(key: string): string | null {
-  // Pattern: uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf
+  // Pattern: {type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}
   const parts = key.split("/");
-  if (parts.length < 2) {
+  if (parts.length < 6) {
     return null;
   }
   
-  // Second part (index 1) is userId
+  // Validate type prefix (pdf or images)
+  if (parts[0] !== "pdf" && parts[0] !== "images") {
+    return null;
+  }
+  
+  // userId is at index 1
   return parts[1];
 }
 
 export const handler = async (event: S3Event) => {
   const processedRecords: Array<{ key: string; success: boolean; error?: string }> = [];
 
+  console.log(`S3 event handler invoked with ${event.Records.length} record(s)`);
+
   for (const record of event.Records) {
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
+    
+    console.log(`Processing S3 event: ${record.eventName} for key: ${key}`);
     
     try {
       // Only process PutObject events (file uploads)
@@ -63,9 +72,11 @@ export const handler = async (event: S3Event) => {
       const fileId = extractFileIdFromKey(key);
       const userId = extractUserIdFromKey(key);
       
+      console.log(`Extracted fileId: ${fileId}, userId: ${userId} from key: ${key}`);
+      
       if (!fileId || !userId) {
         const error = `Failed to extract fileId or userId from key: ${key}`;
-        console.error(error, { key, fileId, userId });
+        console.error(error, { key, fileId, userId, keyParts: key.split("/") });
         processedRecords.push({ key, success: false, error });
         continue;
       }
