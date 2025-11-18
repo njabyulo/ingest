@@ -13,32 +13,99 @@ A production-ready, serverless file ingestion system built with TypeScript, Hono
 - **Modern Web UI** - React + Vite frontend with real-time upload progress tracking
 - **Real Progress Tracking** - XMLHttpRequest-based upload progress with visual feedback
 
-## Architecture
+## High-Level Architecture
+
+The system follows a serverless, event-driven architecture built on AWS. Files are uploaded directly to S3 using presigned URLs, bypassing the backend for ~99% cost reduction. Metadata is tracked in DynamoDB and automatically updated via S3 event notifications.
+
+### Architecture Diagram
 
 ```
-Web UI (React) → API Gateway → Lambda (Presigned URL) → DynamoDB (Metadata)
-     ↓                              ↓
-  S3 (Direct Upload)         S3 (Presigned URL)
-     ↓                              ↓
-  S3 Event → Lambda → DynamoDB (Status Update)
+┌─────────────┐
+│  Web UI     │  React + Vite frontend
+│  (React)    │  - Drag-and-drop upload
+└──────┬──────┘  - Real-time progress tracking
+       │
+       │ HTTP POST /v1/files
+       ▼
+┌─────────────────┐
+│  API Gateway    │  AWS API Gateway v2 (HTTP API)
+│  (REST API)     │  - CORS enabled
+└──────┬──────────┘  - Rate limiting
+       │
+       │ Invoke Lambda
+       ▼
+┌─────────────────────────┐
+│  Upload Request Lambda  │  Hono-based handler
+│  (Presigned URL Gen)    │  - Validates file type/size
+└──────┬──────────────────┘  - Creates DynamoDB metadata (PENDING_UPLOAD)
+       │                      - Generates presigned S3 URL
+       │
+       ├──────────────────────┐
+       │                      │
+       ▼                      ▼
+┌─────────────┐      ┌─────────────────┐
+│  DynamoDB   │      │  S3 Bucket      │
+│  (Metadata) │      │  (File Storage) │
+│             │      │  - Private       │
+│  - fileId   │      │  - Encrypted     │
+│  - status   │      │  - Organized by   │
+│  - metadata │      │    date/user     │
+└─────────────┘      └────────┬─────────┘
+                              │
+                              │ ObjectCreated event
+                              ▼
+                    ┌─────────────────────┐
+                    │  S3 Event Lambda    │
+                    │  (Status Update)    │
+                    │  - Updates status   │
+                    │    PENDING→UPLOADED │
+                    │  - Idempotent       │
+                    └──────────┬──────────┘
+                               │
+                               ▼
+                    ┌─────────────────────┐
+                    │  Dead Letter Queue  │
+                    │  (Error Handling)   │
+                    │  - Failed events    │
+                    │  - 14-day retention │
+                    └─────────────────────┘
 ```
 
-**Key Components:**
-- **Web Application** - React + Vite frontend with drag-and-drop file upload
-- **API Gateway** - RESTful API endpoints
-- **Lambda Functions** - Request handler + S3 event processor
-- **S3 Bucket** - Secure file storage with presigned URLs
-- **DynamoDB** - Metadata persistence with status tracking
-- **S3 Event Notifications** - Automatic status updates
-- **Dead Letter Queue** - Failed event processing capture
+### Key Components
+
+**Frontend Layer:**
+- **Web Application** - React + Vite SPA with drag-and-drop file upload
+- **Real-time Progress** - XMLHttpRequest-based upload progress tracking
+- **API Client** - Type-safe client with error handling
+
+**API Layer:**
+- **API Gateway v2** - HTTP API with CORS, rate limiting
+- **Upload Request Lambda** - Hono-based handler for presigned URL generation
+- **S3 Event Lambda** - Event-driven status updates
+
+**Storage Layer:**
+- **S3 Bucket** - Private, encrypted file storage with date-organized keys
+- **DynamoDB Table** - Metadata persistence with GSIs for efficient queries
+- **Dead Letter Queue** - SQS queue for failed event processing
+
+**Data Flow:**
+1. Client requests presigned URL via `POST /v1/files`
+2. Lambda validates request, creates metadata (status: `PENDING_UPLOAD`), generates presigned URL
+3. Client uploads directly to S3 using presigned URL
+4. S3 emits `ObjectCreated` event
+5. Event Lambda updates DynamoDB status to `UPLOADED`
+6. Client polls `GET /v1/files/{fileId}` to check status
+
+For detailed system design, see [`docs/project/system-design.md`](docs/project/system-design.md).
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js >= 20.0.0
-- pnpm >= 10.0.0
-- AWS CLI configured with appropriate credentials
+- **Node.js** >= 20.0.0
+- **pnpm** >= 10.0.0
+- **AWS CLI** configured with appropriate credentials
+- **AWS Account** with permissions to create Lambda, S3, DynamoDB, API Gateway, SQS resources
 
 ### Installation
 
@@ -49,9 +116,64 @@ cd ingest
 
 # Install dependencies
 pnpm install
+```
 
-# Deploy infrastructure (includes API and web app)
+### Running Locally with SST
+
+SST provides a local development environment that mirrors production. Use `sst dev` to run the system locally with hot-reloading:
+
+```bash
+# Start local development environment
+# This command:
+# - Deploys infrastructure to AWS (dev stage)
+# - Watches for code changes and hot-reloads
+# - Provides local URLs for testing
 pnpm dev:infra:up
+
+# Or use SST directly:
+pnpm exec sst dev --stage dev
+```
+
+**What happens:**
+- Infrastructure is deployed to AWS (dev stage)
+- API Gateway URL is displayed in console
+- Web app is deployed to CloudFront (URL shown in console)
+- Lambda functions hot-reload on code changes
+- All AWS resources are created and linked
+
+**Access the system:**
+- **API URL**: Shown in SST console output (e.g., `https://xxxxx.execute-api.us-east-1.amazonaws.com`)
+- **Web App URL**: Shown in SST console output (CloudFront distribution URL)
+
+**Stop local development:**
+```bash
+# Press Ctrl+C in the terminal running sst dev
+# Or run:
+pnpm dev:infra:down  # Removes all dev resources
+```
+
+### Deploying to Production
+
+Deploy the system to a production stage:
+
+```bash
+# Deploy to production stage
+pnpm exec sst deploy --stage production
+
+# Or use the deploy script (if configured)
+pnpm exec sst deploy --stage prod
+```
+
+**Production deployment:**
+- Creates production resources (separate from dev)
+- Resources are protected from accidental deletion
+- Web app is deployed to CloudFront with production API URL
+- All environment variables are injected automatically
+
+**Clean up production:**
+```bash
+# Remove production resources (use with caution)
+pnpm exec sst remove --stage production
 ```
 
 ### Running the Web Application Locally
@@ -90,19 +212,24 @@ pnpm dev:infra:up  # Uses 'dev' stage by default
 pnpm exec sst <command>
 ```
 
-## API Documentation
+## API Usage Examples
 
-### Request Presigned URL
+### Example 1: Request Presigned URL
 
 **Endpoint:** `POST /v1/files`
 
-**Request:**
-```json
-{
-  "fileName": "document.pdf",
-  "mimeType": "application/pdf",
-  "fileSizeBytes": 1048576
-}
+**cURL:**
+```bash
+# Replace API_URL with your deployed API Gateway URL
+API_URL="https://xxxxx.execute-api.us-east-1.amazonaws.com"
+
+curl -X POST ${API_URL}/v1/files \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fileName": "document.pdf",
+    "mimeType": "application/pdf",
+    "fileSizeBytes": 1048576
+  }'
 ```
 
 **Response:**
@@ -118,27 +245,98 @@ pnpm exec sst <command>
 }
 ```
 
-**Example (cURL):**
-```bash
-curl -X POST https://your-api.execute-api.region.amazonaws.com/v1/files \
-  -H "Content-Type: application/json" \
-  -d '{
-    "fileName": "document.pdf",
-    "mimeType": "application/pdf",
-    "fileSizeBytes": 1048576
-  }'
-```
+### Example 2: Upload File to S3
 
-### Upload File to S3
+**Using the presigned URL from Example 1:**
 
-**Using the presigned URL:**
 ```bash
-curl -X PUT "https://bucket.s3.amazonaws.com/uploads/..." \
+# Extract uploadUrl from previous response
+UPLOAD_URL="https://bucket.s3.amazonaws.com/uploads/..."
+
+# Upload file directly to S3
+curl -X PUT "${UPLOAD_URL}" \
   -H "Content-Type: application/pdf" \
   --upload-file document.pdf
 ```
 
-**Example (JavaScript/TypeScript with Progress Tracking):**
+### Example 3: Complete Upload Flow (Bash Script)
+
+```bash
+#!/bin/bash
+API_URL="https://xxxxx.execute-api.us-east-1.amazonaws.com"
+FILE_PATH="./document.pdf"
+FILE_NAME=$(basename "$FILE_PATH")
+FILE_SIZE=$(stat -f%z "$FILE_PATH" 2>/dev/null || stat -c%s "$FILE_PATH" 2>/dev/null)
+
+# Step 1: Request presigned URL
+echo "Requesting presigned URL..."
+RESPONSE=$(curl -s -X POST ${API_URL}/v1/files \
+  -H "Content-Type: application/json" \
+  -d "{
+    \"fileName\": \"${FILE_NAME}\",
+    \"mimeType\": \"application/pdf\",
+    \"fileSizeBytes\": ${FILE_SIZE}
+  }")
+
+# Extract fileId and uploadUrl
+FILE_ID=$(echo $RESPONSE | jq -r '.fileId')
+UPLOAD_URL=$(echo $RESPONSE | jq -r '.uploadUrl')
+
+echo "File ID: ${FILE_ID}"
+echo "Upload URL: ${UPLOAD_URL}"
+
+# Step 2: Upload to S3
+echo "Uploading file to S3..."
+curl -X PUT "${UPLOAD_URL}" \
+  -H "Content-Type: application/pdf" \
+  --upload-file "${FILE_PATH}"
+
+# Step 3: Check status
+echo "Checking upload status..."
+sleep 2
+curl -s ${API_URL}/v1/files/${FILE_ID} | jq '.'
+```
+
+### Example 4: Get File Metadata
+
+```bash
+API_URL="https://xxxxx.execute-api.us-east-1.amazonaws.com"
+FILE_ID="550e8400-e29b-41d4-a716-446655440000"
+
+curl ${API_URL}/v1/files/${FILE_ID}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "document.pdf",
+  "mimeType": "application/pdf",
+  "sizeBytes": 1048576,
+  "status": "UPLOADED",
+  "createdAt": "2024-01-15T10:00:00.000Z",
+  "updatedAt": "2024-01-15T10:00:05.000Z",
+  "uploadedAt": "2024-01-15T10:00:05.000Z"
+}
+```
+
+### Example 5: List Files
+
+```bash
+API_URL="https://xxxxx.execute-api.us-east-1.amazonaws.com"
+
+# First page
+curl "${API_URL}/v1/files?limit=10"
+
+# Next page (using cursor from previous response)
+CURSOR="eyJTSyI6IkZJTEUj..."
+curl "${API_URL}/v1/files?limit=10&cursor=${CURSOR}"
+```
+
+## Additional API Documentation
+
+For detailed API reference, see the examples above. Here's a JavaScript/TypeScript example with progress tracking:
 ```typescript
 // Step 1: Request presigned URL
 const response = await fetch('https://your-api/v1/files', {
@@ -171,89 +369,20 @@ const statusResponse = await fetch(`https://your-api/v1/files/${fileId}`);
 const { status } = await statusResponse.json();
 ```
 
-### List Files
+### API Endpoints Summary
 
-**Endpoint:** `GET /v1/files?limit={limit}&cursor={cursor}`
-
-Lists files for the current user with pagination. Designed for building dashboards and file management UIs.
-
-**Query Parameters:**
-- `limit` (optional): Number of files to return. Default: 20, Maximum: 100
-- `cursor` (optional): Pagination token from previous response's `nextCursor` field
-
-**Response:**
-```json
-{
-  "success": true,
-  "files": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440000",
-      "name": "document.pdf",
-      "mimeType": "application/pdf",
-      "sizeBytes": 1048576,
-      "status": "UPLOADED",
-      "createdAt": "2024-01-15T10:00:00.000Z",
-      "updatedAt": "2024-01-15T10:00:05.000Z",
-      "uploadedAt": "2024-01-15T10:00:05.000Z"
-    }
-  ],
-  "nextCursor": "eyJTSyI6IkZJTEUjNTUwZTg0MDAtZTI5Yi00MWQ0LWE3MTYtNDQ2NjU1NDQwMDAwIiwiUEsiOiJVU0VSI3VzZXItaWQifQ=="
-}
-```
-
-**Notes:**
-- Files are sorted by creation date (newest first)
-- `nextCursor` is only included when more results are available
-- Cursor is a base64-encoded LastEvaluatedKey token for DynamoDB pagination
-
-**Example (cURL):**
-```bash
-# First page
-curl "https://your-api.execute-api.region.amazonaws.com/v1/files?limit=10"
-
-# Next page using cursor
-curl "https://your-api.execute-api.region.amazonaws.com/v1/files?limit=10&cursor=eyJTSyI6IkZJTEUj..."
-```
-
-### Get File Metadata
-
-**Endpoint:** `GET /v1/files/{fileId}`
-
-Returns file metadata including status, name, size, and timestamps. Designed for UI status display with sub-150ms p95 latency.
-
-**Response:**
-```json
-{
-  "success": true,
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "name": "document.pdf",
-  "mimeType": "application/pdf",
-  "sizeBytes": 1048576,
-  "status": "UPLOADED",
-  "createdAt": "2024-01-15T10:00:00.000Z",
-  "updatedAt": "2024-01-15T10:00:05.000Z",
-  "uploadedAt": "2024-01-15T10:00:05.000Z"
-}
-```
-
-**Error Response (404):**
-```json
-{
-  "success": false,
-  "error": "File not found"
-}
-```
-
-**Example (cURL):**
-```bash
-curl https://your-api.execute-api.region.amazonaws.com/v1/files/550e8400-e29b-41d4-a716-446655440000
-```
+**Available Endpoints:**
+- `POST /v1/files` - Request presigned URL for upload
+- `GET /v1/files/{fileId}` - Get file metadata by ID
+- `GET /v1/files?limit={limit}&cursor={cursor}` - List files with pagination
 
 **Status Values:**
 - `PENDING_UPLOAD` - Presigned URL generated, awaiting upload
 - `UPLOADED` - File successfully uploaded to S3
 - `FAILED` - Upload failed (future feature)
 - `DELETED` - File marked as deleted (future feature)
+
+See the examples above for complete usage patterns.
 
 ## Integration Guide
 
