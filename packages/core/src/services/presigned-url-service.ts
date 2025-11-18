@@ -31,20 +31,41 @@ export class PresignedUrlService implements File.IPresignedUrlService {
       if (fileType === "unknown") {
         return {
           success: false,
-          error: `Unsupported file type: ${request.contentType}`,
+          error: `Unsupported file type: ${request.contentType}. Supported types: PDF, JPEG, PNG`,
         };
       }
 
-      // Only allow PDF for now
-      if (fileType !== "pdf") {
+      // Validate file type is allowed
+      const allowedTypes = [
+        ...Constants.File.FILE_CONSTANTS.ALLOWED_PDF_TYPES,
+        ...Constants.File.FILE_CONSTANTS.ALLOWED_IMAGE_TYPES,
+      ];
+      const normalizedContentType = request.contentType.toLowerCase();
+      if (!allowedTypes.some((type) => type.toLowerCase() === normalizedContentType)) {
         return {
           success: false,
-          error: `Only PDF files are supported. Received: ${fileType}`,
+          error: `Unsupported MIME type: ${request.contentType}. Supported types: ${allowedTypes.join(", ")}`,
+        };
+      }
+
+      // Validate file size based on type
+      const maxSizeBytes =
+        fileType === "pdf"
+          ? Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES
+          : Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES;
+
+      if (request.size > maxSizeBytes) {
+        const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(2);
+        const fileSizeMB = (request.size / (1024 * 1024)).toFixed(2);
+        const typeLabel = fileType === "pdf" ? "PDFs" : "images";
+        return {
+          success: false,
+          error: `File size ${fileSizeMB}MB exceeds maximum allowed size of ${maxSizeMB}MB for ${typeLabel}`,
         };
       }
 
       const fileId = randomUUID();
-      const key = Utils.Aws.generateS3Key(this.config.userId, fileId, request.fileName);
+      const key = Utils.Aws.generateS3Key(fileType, this.config.userId, fileId, request.fileName);
       const now = new Date().toISOString();
 
       const expirationSeconds =
@@ -100,7 +121,7 @@ export class PresignedUrlService implements File.IPresignedUrlService {
         fileId,
         expiresIn: expirationSeconds, // Keep for backward compatibility
         expiresAt,
-        maxSizeBytes: Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES,
+        maxSizeBytes, // Return the appropriate max size for the file type
         // Note: Use PUT method (not GET) when uploading to the presigned URL
         method: "PUT",
       };
