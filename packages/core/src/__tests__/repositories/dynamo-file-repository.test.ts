@@ -29,8 +29,8 @@ describe("DynamoFileRepository", () => {
       dynamoClient: mockDynamoClient,
     });
 
-    // Default mock implementations - send returns Promise<any>
-    vi.mocked(mockDynamoClient.send).mockResolvedValue({} as any);
+    // Default mock implementations - send returns Promise<unknown>
+    vi.mocked(mockDynamoClient.send).mockResolvedValue({} as unknown);
   });
 
   describe("createFile", () => {
@@ -284,7 +284,7 @@ describe("DynamoFileRepository", () => {
         fileId, // Override with test fileId
         userId, // Override with test userId
       };
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Item: mockItem } as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Item: mockItem } as unknown);
 
       // Act
       const result = await repository.getFile(fileId, userId);
@@ -309,7 +309,7 @@ describe("DynamoFileRepository", () => {
 
     it("should return null if file does not exist", async () => {
       // Arrange
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({} as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({} as unknown);
 
       // Act
       const result = await repository.getFile("non-existent", "test-user");
@@ -337,7 +337,7 @@ describe("DynamoFileRepository", () => {
         expiresAt: undefined,
         ttl: undefined,
       };
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Item: mockItem } as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Item: mockItem } as unknown);
 
       // Act
       const result = await repository.getFile("test-file-id", "test-user");
@@ -369,7 +369,7 @@ describe("DynamoFileRepository", () => {
         ...testFixtures.sampleFile,
         fileId,
       };
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: [mockItem] } as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: [mockItem] } as unknown);
 
       // Act
       const result = await repository.getFileById(fileId);
@@ -391,7 +391,7 @@ describe("DynamoFileRepository", () => {
 
     it("should return null if file does not exist", async () => {
       // Arrange
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: [] } as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: [] } as unknown);
 
       // Act
       const result = await repository.getFileById("non-existent");
@@ -407,7 +407,7 @@ describe("DynamoFileRepository", () => {
         { ...testFixtures.sampleFile, fileId },
         { ...testFixtures.sampleFile, fileId: "another-id" },
       ];
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: mockItems } as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: mockItems } as unknown);
 
       // Act
       const result = await repository.getFileById(fileId);
@@ -430,7 +430,7 @@ describe("DynamoFileRepository", () => {
       vi.mocked(mockDynamoClient.send).mockResolvedValue({
         Items: mockItems,
         LastEvaluatedKey: { PK: "USER#test-user", SK: "FILE#file-2" },
-      } as any);
+      } as unknown);
 
       // Act
       const result = await repository.listFiles(userId, limit);
@@ -454,7 +454,7 @@ describe("DynamoFileRepository", () => {
 
     it("should return empty list if no files exist", async () => {
       // Arrange
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: [] } as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: [] } as unknown);
 
       // Act
       const result = await repository.listFiles("test-user", 10);
@@ -472,7 +472,7 @@ describe("DynamoFileRepository", () => {
         JSON.stringify({ PK: "USER#test-user", SK: "FILE#file-2" })
       ).toString("base64");
       const mockItems = [{ ...testFixtures.sampleFile, fileId: "file-3" }];
-      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: mockItems } as any);
+      vi.mocked(mockDynamoClient.send).mockResolvedValue({ Items: mockItems } as unknown);
 
       // Act
       await repository.listFiles(userId, limit, cursor);
@@ -508,7 +508,7 @@ describe("DynamoFileRepository", () => {
       vi.mocked(mockDynamoClient.send).mockResolvedValue({
         Items: [{ ...testFixtures.sampleFile }],
         LastEvaluatedKey: lastEvaluatedKey,
-      } as any);
+      } as unknown);
 
       // Act
       const result = await repository.listFiles(userId, 10);
@@ -558,8 +558,8 @@ describe("DynamoFileRepository", () => {
         },
       ];
       vi.mocked(mockDynamoClient.send)
-        .mockResolvedValueOnce({ Items: mockItems } as any) // Query result
-        .mockResolvedValue({} as any); // Delete results
+        .mockResolvedValueOnce({ Items: mockItems } as unknown) // Query result
+        .mockResolvedValue({} as unknown); // Delete results
 
       // Act
       const deletedCount = await repository.deleteExpiredPendingFiles(expiredBefore);
@@ -592,12 +592,12 @@ describe("DynamoFileRepository", () => {
         .mockResolvedValueOnce({
           Items: [{ PK: "USER#user1", SK: "FILE#file1", fileId: "file1" }],
           LastEvaluatedKey: lastEvaluatedKey,
-        } as any)
-        .mockResolvedValueOnce({} as any) // Delete for file1
+        } as unknown)
+        .mockResolvedValueOnce({} as unknown) // Delete for file1
         .mockResolvedValueOnce({
           Items: [{ PK: "USER#user2", SK: "FILE#file2", fileId: "file2" }],
-        } as any)
-        .mockResolvedValueOnce({} as any); // Delete for file2
+        } as unknown)
+        .mockResolvedValueOnce({} as unknown); // Delete for file2
 
       // Act
       const deletedCount = await repository.deleteExpiredPendingFiles(expiredBefore);
@@ -625,8 +625,8 @@ describe("DynamoFileRepository", () => {
       ];
       
       vi.mocked(mockDynamoClient.send)
-        .mockResolvedValueOnce({ Items: mockItems } as any)
-        .mockResolvedValueOnce({} as any) // First delete succeeds
+        .mockResolvedValueOnce({ Items: mockItems } as unknown)
+        .mockResolvedValueOnce({} as unknown) // First delete succeeds
         .mockRejectedValueOnce(new Error("Delete failed")); // Second delete fails
 
       // Act
@@ -650,9 +650,9 @@ describe("DynamoFileRepository", () => {
       ];
       
       vi.mocked(mockDynamoClient.send)
-        .mockResolvedValueOnce({ Items: [] } as any) // GSI query returns nothing
-        .mockResolvedValueOnce({ Items: oldItems } as any) // Scan finds old records
-        .mockResolvedValue({} as any); // Delete results
+        .mockResolvedValueOnce({ Items: [] } as unknown) // GSI query returns nothing
+        .mockResolvedValueOnce({ Items: oldItems } as unknown) // Scan finds old records
+        .mockResolvedValue({} as unknown); // Delete results
 
       // Act
       const deletedCount = await repository.deleteExpiredPendingFiles(expiredBefore);
@@ -678,8 +678,8 @@ describe("DynamoFileRepository", () => {
       // Arrange
       const expiredBefore = "2024-01-15T10:00:00.000Z";
       vi.mocked(mockDynamoClient.send)
-        .mockResolvedValueOnce({ Items: [] } as any) // GSI query
-        .mockResolvedValueOnce({ Items: [] } as any); // Scan
+        .mockResolvedValueOnce({ Items: [] } as unknown) // GSI query
+        .mockResolvedValueOnce({ Items: [] } as unknown); // Scan
 
       // Act
       const deletedCount = await repository.deleteExpiredPendingFiles(expiredBefore);

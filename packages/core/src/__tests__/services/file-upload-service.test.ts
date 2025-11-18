@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import * as Services from "../../services";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import * as Utils from "@ingest/shared/utils";
-import { createMockFileTypeDetector, createMockFileRepository, testFixtures } from "../helpers/mocks";
+import { createMockFileTypeDetector, createMockFileRepository } from "../helpers/mocks";
 
 // Mock AWS SDK modules
 vi.mock("@aws-sdk/client-s3", () => ({
@@ -12,7 +12,7 @@ vi.mock("@aws-sdk/client-s3", () => ({
 
 vi.mock("@ingest/shared/utils", () => ({
   Aws: {
-    generateS3Key: vi.fn((userId: string, fileId: string, fileName: string) => 
+    generateS3Key: vi.fn((userId: string, fileId: string, _fileName: string) => 
       `uploads/${userId}/2024/01/15/${fileId}.pdf`
     ),
     getAwsResourceTags: vi.fn(() => ({ Project: "ingest", Environment: "test" })),
