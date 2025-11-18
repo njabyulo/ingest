@@ -12,8 +12,8 @@ vi.mock("@aws-sdk/client-s3", () => ({
 
 vi.mock("@ingest/shared/utils", () => ({
   Aws: {
-    generateS3Key: vi.fn((userId: string, fileId: string, _fileName: string) => 
-      `uploads/${userId}/2024/01/15/${fileId}.pdf`
+    generateS3Key: vi.fn((fileType: string, userId: string, fileId: string, _fileName: string) => 
+      `${fileType}/${userId}/2024/01/15/${fileId}.pdf`
     ),
     getAwsResourceTags: vi.fn(() => ({ Project: "ingest", Environment: "test" })),
     formatS3Tags: vi.fn(() => "Project=ingest&Environment=test"),
@@ -108,6 +108,7 @@ describe("FileUploadService", () => {
 
       // Assert
       expect(Utils.Aws.generateS3Key).toHaveBeenCalledWith(
+        "pdf",
         "test-user",
         fileId,
         fileName
@@ -154,8 +155,81 @@ describe("FileUploadService", () => {
     });
   });
 
-  describe("upload - Invalid file types", () => {
-    it("should reject non-PDF files", async () => {
+  describe("upload - Image support", () => {
+    it("should successfully upload a valid JPEG image", async () => {
+      // Arrange
+      vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
+      const fileId = "test-file-id";
+      const fileName = "photo.jpg";
+      const contentType = "image/jpeg";
+      const fileContent = Buffer.from("image content");
+      const size = 2 * 1024 * 1024; // 2 MB
+
+      // Act
+      const result = await service.upload(
+        fileId,
+        fileName,
+        contentType,
+        fileContent,
+        size
+      );
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.fileId).toBe(fileId);
+        // The mock returns pattern with fileType prefix
+        expect(result.key).toMatch(/^(image|images)\//);
+      }
+
+      // Verify file was created in repository
+      expect(mockFileRepository.createFile).toHaveBeenCalledTimes(1);
+      expect(Utils.Aws.generateS3Key).toHaveBeenCalledWith(
+        "image",
+        "test-user",
+        fileId,
+        fileName
+      );
+      expect(mockS3Client.send).toHaveBeenCalled();
+    });
+
+    it("should successfully upload a valid PNG image", async () => {
+      // Arrange
+      vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
+      const fileId = "test-image-id";
+      const fileName = "screenshot.png";
+      const contentType = "image/png";
+      const fileContent = Buffer.from("png image content");
+      const size = 3 * 1024 * 1024; // 3 MB
+
+      // Act
+      const result = await service.upload(
+        fileId,
+        fileName,
+        contentType,
+        fileContent,
+        size
+      );
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.fileId).toBe(fileId);
+        expect(result.key).toMatch(/^(image|images)\//);
+      }
+
+      // Verify file was created in repository
+      expect(mockFileRepository.createFile).toHaveBeenCalledTimes(1);
+      expect(Utils.Aws.generateS3Key).toHaveBeenCalledWith(
+        "image",
+        "test-user",
+        fileId,
+        fileName
+      );
+      expect(mockS3Client.send).toHaveBeenCalled();
+    });
+
+    it("should reject oversized images", async () => {
       // Arrange
       vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
       const fileId = "test-file-id";
@@ -163,24 +237,26 @@ describe("FileUploadService", () => {
       // Act
       const result = await service.upload(
         fileId,
-        "test.jpg",
+        "large.jpg",
         "image/jpeg",
         Buffer.from("content"),
-        1024
+        6 * 1024 * 1024 // 6 MB (exceeds 5 MB limit)
       );
 
       // Assert
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toContain("Only PDF files are supported");
-        expect(result.error).toContain("image");
+        expect(result.error).toContain("exceeds maximum allowed size");
+        expect(result.error).toContain("images");
       }
 
       // Verify file was NOT created in repository
       expect(mockFileRepository.createFile).not.toHaveBeenCalled();
       expect(mockS3Client.send).not.toHaveBeenCalled();
     });
+  });
 
+  describe("upload - Invalid file types", () => {
     it("should reject unknown file types", async () => {
       // Arrange
       vi.mocked(mockFileTypeDetector.detect).mockReturnValue("unknown");
@@ -198,7 +274,7 @@ describe("FileUploadService", () => {
       // Assert
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toContain("Only PDF files are supported");
+        expect(result.error).toContain("Unsupported file type");
       }
 
       // Verify file was NOT created in repository
