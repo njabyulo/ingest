@@ -37,7 +37,7 @@ vi.mock("@ingest/shared/utils", async () => {
   return {
     ...actual,
     Aws: {
-      generateS3Key: vi.fn((userId: string, fileId: string, fileName: string) => 
+      generateS3Key: vi.fn((userId: string, fileId: string, _fileName: string) => 
         `uploads/${userId}/2024/01/15/${fileId}.pdf`
       ),
       getAwsResourceTags: vi.fn(() => ({ Project: "ingest", Environment: "test" })),

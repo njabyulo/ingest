@@ -9,8 +9,8 @@ import { vi } from "vitest";
 export function createMockS3Client(): S3Client {
   return {
     send: vi.fn(),
-    config: {} as any,
-    middlewareStack: {} as any,
+    config: {} as unknown as S3Client["config"],
+    middlewareStack: {} as unknown as S3Client["middlewareStack"],
     destroy: vi.fn(),
   } as unknown as S3Client;
 }
@@ -21,8 +21,8 @@ export function createMockS3Client(): S3Client {
 export function createMockDynamoClient(): DynamoDBDocumentClient {
   return {
     send: vi.fn(),
-    config: {} as any,
-    middlewareStack: {} as any,
+    config: {} as unknown as DynamoDBDocumentClient["config"],
+    middlewareStack: {} as unknown as DynamoDBDocumentClient["middlewareStack"],
     destroy: vi.fn(),
   } as unknown as DynamoDBDocumentClient;
 }
