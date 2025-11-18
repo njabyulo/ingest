@@ -45,13 +45,17 @@
     "lint:type": "tsc --noEmit",
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
     "clean": "rm -rf .turbo",
     "clean:all": "rm -rf .turbo node_modules dist"
   },
   "dependencies": {},
   "devDependencies": {
     "tsup": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
 
