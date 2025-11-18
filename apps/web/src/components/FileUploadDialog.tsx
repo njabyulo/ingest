@@ -78,18 +78,18 @@ export function FileUploadDialog({
         });
 
         if (result.success && result.fileId) {
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === fileItemId
-                ? {
-                    ...f,
-                    status: "completed",
-                    progress: 100,
-                    fileId: result.fileId,
-                  }
-                : f
-            )
-          );
+          // setFiles((prev) =>
+          //   prev.map((f) =>
+          //     f.id === fileItemId
+          //       ? {
+          //           ...f,
+          //           status: "completed",
+          //           progress: 100,
+          //           fileId: result.fileId,
+          //         }
+          //       : f
+          //   )
+          // );
           onUploadComplete?.(result.fileId);
         } else {
           setFiles((prev) =>
