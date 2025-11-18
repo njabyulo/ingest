@@ -5,13 +5,15 @@ A production-ready, serverless file ingestion system built with TypeScript, Hono
 ## Features
 
 - **Presigned URL Uploads** - Direct-to-S3 uploads bypassing the backend (~99% cost reduction)
+- **Presigned URL Downloads** - Secure file downloads with time-limited presigned URLs
 - **Metadata Tracking** - Full file metadata persistence in DynamoDB with status tracking
 - **Event-Driven Status Updates** - Automatic status updates via S3 event notifications
 - **Date-Organized Storage** - Files stored at `uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf`
 - **Type-Safe Architecture** - Full TypeScript with interface-based dependency injection
 - **Serverless-First** - Built on AWS Lambda, S3, DynamoDB, and API Gateway
-- **Modern Web UI** - React + Vite frontend with real-time upload progress tracking
+- **Modern Web UI** - React + Vite frontend with real-time upload progress tracking and file management
 - **Real Progress Tracking** - XMLHttpRequest-based upload progress with visual feedback
+- **File Listing & Download** - Browse uploaded files and download them securely
 
 ## High-Level Architecture
 
@@ -334,6 +336,59 @@ CURSOR="eyJTSyI6IkZJTEUj..."
 curl "${API_URL}/v1/files?limit=10&cursor=${CURSOR}"
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "files": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "document.pdf",
+      "mimeType": "application/pdf",
+      "sizeBytes": 1048576,
+      "status": "UPLOADED",
+      "createdAt": "2024-01-15T10:00:00.000Z",
+      "updatedAt": "2024-01-15T10:00:05.000Z",
+      "uploadedAt": "2024-01-15T10:00:05.000Z"
+    }
+  ],
+  "nextCursor": "eyJTSyI6IkZJTEUj..."
+}
+```
+
+### Example 6: Download File
+
+**Endpoint:** `GET /v1/files/{fileId}/download`
+
+```bash
+API_URL="https://xxxxx.execute-api.us-east-1.amazonaws.com"
+FILE_ID="550e8400-e29b-41d4-a716-446655440000"
+
+# Request download URL
+curl "${API_URL}/v1/files/${FILE_ID}/download"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "downloadUrl": "https://bucket.s3.amazonaws.com/uploads/...?X-Amz-Algorithm=...",
+  "fileName": "document.pdf",
+  "expiresAt": "2024-01-15T10:10:00.000Z"
+}
+```
+
+**Download the file:**
+```bash
+# Use the downloadUrl from the response
+DOWNLOAD_URL="https://bucket.s3.amazonaws.com/uploads/...?X-Amz-Algorithm=..."
+
+# Download the file
+curl -L "${DOWNLOAD_URL}" -o document.pdf
+```
+
+**Note:** The presigned download URL expires after 5 minutes. Only files with status `UPLOADED` can be downloaded.
+
 ## Additional API Documentation
 
 For detailed API reference, see the examples above. Here's a JavaScript/TypeScript example with progress tracking:
@@ -373,8 +428,9 @@ const { status } = await statusResponse.json();
 
 **Available Endpoints:**
 - `POST /v1/files` - Request presigned URL for upload
+- `GET /v1/files` - List files with pagination (`?limit={limit}&cursor={cursor}`)
 - `GET /v1/files/{fileId}` - Get file metadata by ID
-- `GET /v1/files?limit={limit}&cursor={cursor}` - List files with pagination
+- `GET /v1/files/{fileId}/download` - Get presigned download URL
 
 **Status Values:**
 - `PENDING_UPLOAD` - Presigned URL generated, awaiting upload
@@ -669,20 +725,23 @@ The web application uses:
 Key features:
 - Real-time upload progress with visual progress bar
 - Drag-and-drop file upload
+- File listing with pagination and sorting
+- Secure file downloads via presigned URLs
 - PDF-only validation (v1)
 - 10MB file size limit
 - Error handling with clear messaging
+- Modern Drive-like UI with file management
 
 ## Roadmap
 
+- [x] File listing and query endpoints
+- [x] File download endpoints
 - [ ] File validation after upload (verify metadata matches)
 - [ ] Cleanup mechanism for abandoned uploads
-- [ ] File listing and query endpoints
 - [ ] PDF text extraction
 - [ ] Basic search over uploaded documents
 - [ ] Multi-file type support (images, etc.)
 - [ ] User authentication and authorization
-- [ ] File download endpoints
 - [ ] Batch upload support
 
 ## Testing
