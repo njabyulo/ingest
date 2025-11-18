@@ -64,10 +64,25 @@ export const testFixtures = {
     mimeType: "application/pdf",
     fileSizeBytes: 11 * 1024 * 1024, // 11 MB (exceeds 10 MB limit)
   },
-  invalidMimeTypeRequest: {
-    fileName: "test.jpg",
+  validImageJpegRequest: {
+    fileName: "photo.jpg",
     mimeType: "image/jpeg",
-    fileSizeBytes: 1024 * 1024,
+    fileSizeBytes: 2 * 1024 * 1024, // 2 MB
+  },
+  validImagePngRequest: {
+    fileName: "screenshot.png",
+    mimeType: "image/png",
+    fileSizeBytes: 3 * 1024 * 1024, // 3 MB
+  },
+  oversizedImageRequest: {
+    fileName: "large.jpg",
+    mimeType: "image/jpeg",
+    fileSizeBytes: 6 * 1024 * 1024, // 6 MB (exceeds 5 MB limit)
+  },
+  invalidMimeTypeRequest: {
+    fileName: "test.txt",
+    mimeType: "text/plain",
+    fileSizeBytes: 1024,
   },
   invalidFileTypeRequest: {
     fileName: "test.txt",
@@ -82,7 +97,20 @@ export const testFixtures = {
     sizeBytes: 1024 * 1024,
     status: "PENDING_UPLOAD" as const,
     s3Bucket: "test-bucket",
-    s3Key: "uploads/test-user/2024/01/15/test.pdf",
+    s3Key: "pdf/test-user/2024/01/15/test.pdf",
+    createdAt: "2024-01-15T10:00:00.000Z",
+    updatedAt: "2024-01-15T10:00:00.000Z",
+    expiresAt: "2024-01-15T10:05:00.000Z",
+  },
+  sampleImageFile: {
+    fileId: "660e8400-e29b-41d4-a716-446655440001",
+    userId: "test-user",
+    fileName: "photo.jpg",
+    mimeType: "image/jpeg",
+    sizeBytes: 2 * 1024 * 1024,
+    status: "PENDING_UPLOAD" as const,
+    s3Bucket: "test-bucket",
+    s3Key: "images/test-user/2024/01/15/photo.jpg",
     createdAt: "2024-01-15T10:00:00.000Z",
     updatedAt: "2024-01-15T10:00:00.000Z",
     expiresAt: "2024-01-15T10:05:00.000Z",
