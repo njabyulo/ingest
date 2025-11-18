@@ -180,9 +180,77 @@ app.get("/v1/files", async (c) => {
   }
 });
 
+// GET /v1/files/:fileId/download - Get presigned download URL
+// Returns: downloadUrl, fileName, expiresAt
+// NOTE: This route must be defined BEFORE /v1/files/:fileId to avoid route matching conflicts
+app.get("/v1/files/:fileId/download", async (c) => {
+  try {
+    const fileId = c.req.param("fileId");
+
+    if (!fileId) {
+      return c.json(
+        { success: false, error: "Missing fileId parameter" },
+        400,
+      );
+    }
+
+    // Get file metadata to retrieve S3 key and fileName
+    let file = await fileRepository.getFileById(fileId);
+    if (!file) {
+      file = await fileRepository.getFile(fileId, DEFAULT_USER_ID);
+    }
+
+    if (!file) {
+      return c.json(
+        { success: false, error: "File not found" },
+        404,
+      );
+    }
+
+    // Only allow download of uploaded files
+    if (file.status !== "UPLOADED") {
+      return c.json(
+        { success: false, error: `File is not available for download. Status: ${file.status}` },
+        400,
+      );
+    }
+
+    // Generate presigned download URL
+    const result = await presignedUrlService.generateDownloadUrl(
+      file.fileId,
+      file.fileName,
+      file.s3Key,
+    );
+
+    if (!result.success) {
+      return c.json(
+        { success: false, error: result.error },
+        500,
+      );
+    }
+
+    return c.json(
+      {
+        success: true,
+        downloadUrl: result.downloadUrl,
+        fileName: result.fileName,
+        expiresAt: result.expiresAt,
+      },
+      200,
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    return c.json(
+      { success: false, error: `Internal server error: ${errorMessage}` },
+      500,
+    );
+  }
+});
+
 // GET /v1/files/:fileId - Get file metadata
 // Returns: id, name, mimeType, sizeBytes, status, timestamps (createdAt, updatedAt, uploadedAt)
 // Performance: Optimized for p95 < 150ms using DynamoDB GSI query
+// NOTE: This route must be defined AFTER /v1/files/:fileId/download to avoid route matching conflicts
 app.get("/v1/files/:fileId", async (c) => {
   try {
     const fileId = c.req.param("fileId");
