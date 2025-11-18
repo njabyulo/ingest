@@ -1,6 +1,7 @@
 import type { File } from "@ingest/shared/types";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import * as Utils from "@ingest/shared/utils";
+import * as Constants from "@ingest/shared/constants";
 
 export interface IFileUploadServiceConfig {
   bucketName: string;
@@ -23,14 +24,43 @@ export class FileUploadService implements File.IFileUploadService {
     try {
       // Validate file type
       const fileType = this.config.fileTypeDetector.detect(contentType, fileName);
-      if (fileType !== "pdf") {
+      if (fileType === "unknown") {
         return {
           success: false,
-          error: `Only PDF files are supported. Received: ${fileType}`,
+          error: `Unsupported file type: ${contentType}. Supported types: PDF, JPEG, PNG`,
         };
       }
 
-      const key = Utils.Aws.generateS3Key(this.config.userId, fileId, fileName);
+      // Validate MIME type is allowed
+      const allowedTypes = [
+        ...Constants.File.FILE_CONSTANTS.ALLOWED_PDF_TYPES,
+        ...Constants.File.FILE_CONSTANTS.ALLOWED_IMAGE_TYPES,
+      ];
+      const normalizedContentType = contentType.toLowerCase();
+      if (!allowedTypes.some((type) => type.toLowerCase() === normalizedContentType)) {
+        return {
+          success: false,
+          error: `Unsupported MIME type: ${contentType}. Supported types: ${allowedTypes.join(", ")}`,
+        };
+      }
+
+      // Validate file size based on type
+      const maxSizeBytes =
+        fileType === "pdf"
+          ? Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES
+          : Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES;
+
+      if (size > maxSizeBytes) {
+        const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(2);
+        const fileSizeMB = (size / (1024 * 1024)).toFixed(2);
+        const typeLabel = fileType === "pdf" ? "PDFs" : "images";
+        return {
+          success: false,
+          error: `File size ${fileSizeMB}MB exceeds maximum allowed size of ${maxSizeMB}MB for ${typeLabel}`,
+        };
+      }
+
+      const key = Utils.Aws.generateS3Key(fileType, this.config.userId, fileId, fileName);
       const now = new Date().toISOString();
 
       // Save metadata to DynamoDB with PENDING_UPLOAD status before upload
