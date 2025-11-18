@@ -59,6 +59,6 @@
     "pnpm": ">=10.0.0"
   },
   "dependencies": {
-    "sst": "3.17.23"
+    "sst": "catalog:"
   }
 }
