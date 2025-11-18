@@ -12,8 +12,11 @@
   },
   "dependencies": {
     "@ingest/shared": "workspace:*",
-    "@radix-ui/react-progress": "^1.1.8",
-    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-dialog": "catalog:",
+    "@radix-ui/react-dropdown-menu": "catalog:",
+    "@radix-ui/react-progress": "catalog:",
+    "@radix-ui/react-select": "catalog:",
+    "@radix-ui/react-slot": "catalog:",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "framer-motion": "catalog:",
@@ -24,7 +27,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
-    "@tailwindcss/postcss": "^4.1.17",
+    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
