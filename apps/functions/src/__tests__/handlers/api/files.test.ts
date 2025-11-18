@@ -37,8 +37,8 @@ vi.mock("@ingest/shared/utils", async () => {
   return {
     ...actual,
     Aws: {
-      generateS3Key: vi.fn((userId: string, fileId: string, _fileName: string) => 
-        `uploads/${userId}/2024/01/15/${fileId}.pdf`
+      generateS3Key: vi.fn((fileType: string, userId: string, fileId: string, _fileName: string) => 
+        `${fileType}/${userId}/2024/01/15/${fileId}.pdf`
       ),
       getAwsResourceTags: vi.fn(() => ({ Project: "ingest", Environment: "test" })),
       formatS3Tags: vi.fn(() => "Project=ingest&Environment=test"),
@@ -107,25 +107,50 @@ describe("POST /v1/files - API Handler", () => {
           );
         }
 
-        // Validate MIME type: Only application/pdf allowed in v1
-        if (mimeType !== "application/pdf") {
+        // Detect file type and validate
+        const fileTypeDetector = new Utils.DetectFileType.FileTypeDetector();
+        const fileType = fileTypeDetector.detect(mimeType, fileName);
+
+        if (fileType === "unknown") {
           return c.json(
             {
               success: false,
-              error: `Only application/pdf files are allowed in v1. Received: ${mimeType}`,
+              error: `Unsupported file type: ${mimeType}. Supported types: PDF, JPEG, PNG`,
             },
             400,
           );
         }
 
-        // Validate file size
-        if (fileSizeBytes > Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES) {
-          const maxSizeMB = (Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES / (1024 * 1024)).toFixed(2);
-          const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+        // Validate MIME type is in allowed list
+        const allowedTypes = [
+          ...Constants.File.FILE_CONSTANTS.ALLOWED_PDF_TYPES,
+          ...Constants.File.FILE_CONSTANTS.ALLOWED_IMAGE_TYPES,
+        ];
+        const normalizedMimeType = mimeType.toLowerCase();
+        if (!allowedTypes.some((type) => type.toLowerCase() === normalizedMimeType)) {
           return c.json(
             {
               success: false,
-              error: `File size ${fileSizeMB}MB exceeds maximum allowed size of ${maxSizeMB}MB`,
+              error: `Unsupported MIME type: ${mimeType}. Supported types: ${allowedTypes.join(", ")}`,
+            },
+            400,
+          );
+        }
+
+        // Validate file size based on type
+        const maxSizeBytes =
+          fileType === "pdf"
+            ? Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES
+            : Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES;
+
+        if (fileSizeBytes > maxSizeBytes) {
+          const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(2);
+          const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+          const typeLabel = fileType === "pdf" ? "PDFs" : "images";
+          return c.json(
+            {
+              success: false,
+              error: `File size ${fileSizeMB}MB exceeds maximum allowed size of ${maxSizeMB}MB for ${typeLabel}`,
             },
             400,
           );
@@ -191,10 +216,11 @@ describe("POST /v1/files - API Handler", () => {
     });
   });
 
-  describe("Invalid MIME type", () => {
-    it("should reject non-PDF MIME types", async () => {
+  describe("Valid Image upload request", () => {
+    it("should return presigned URL for valid JPEG image request", async () => {
       // Arrange
-      const request = testFixtures.invalidMimeTypeRequest;
+      const request = testFixtures.validImageJpegRequest;
+      vi.mocked(mockFileRepository.createFile).mockResolvedValue(undefined);
 
       // Act
       const res = await app.request("/v1/files", {
@@ -204,13 +230,38 @@ describe("POST /v1/files - API Handler", () => {
       });
 
       // Assert
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(201);
       const data = await res.json();
-      expect(data.success).toBe(false);
-      expect(data.error).toContain("Only application/pdf files are allowed");
+      expect(data.success).toBe(true);
+      expect(data.fileId).toBeDefined();
+      expect(data.uploadUrl).toBeDefined();
+      expect(data.expiresAt).toBeDefined();
+      expect(data.maxSizeBytes).toBe(Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES);
+      expect(data.method).toBe("PUT");
     });
 
-    it("should reject unknown MIME types", async () => {
+    it("should return presigned URL for valid PNG image request", async () => {
+      // Arrange
+      const request = testFixtures.validImagePngRequest;
+      vi.mocked(mockFileRepository.createFile).mockResolvedValue(undefined);
+
+      // Act
+      const res = await app.request("/v1/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+      });
+
+      // Assert
+      expect(res.status).toBe(201);
+      const data = await res.json();
+      expect(data.success).toBe(true);
+      expect(data.maxSizeBytes).toBe(Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES);
+    });
+  });
+
+  describe("Invalid MIME type", () => {
+    it("should reject unsupported MIME types", async () => {
       // Arrange
       const request = testFixtures.invalidFileTypeRequest;
 
@@ -225,12 +276,12 @@ describe("POST /v1/files - API Handler", () => {
       expect(res.status).toBe(400);
       const data = await res.json();
       expect(data.success).toBe(false);
-      expect(data.error).toContain("Only application/pdf files are allowed");
+      expect(data.error).toContain("Unsupported file type");
     });
   });
 
   describe("Oversized file", () => {
-    it("should reject files exceeding size limit", async () => {
+    it("should reject PDF files exceeding size limit", async () => {
       // Arrange
       const request = testFixtures.oversizedPdfRequest;
 
@@ -246,7 +297,28 @@ describe("POST /v1/files - API Handler", () => {
       const data = await res.json();
       expect(data.success).toBe(false);
       expect(data.error).toContain("exceeds maximum allowed size");
+      expect(data.error).toContain("PDFs");
       expect(data.error).toContain("10.00MB");
+    });
+
+    it("should reject image files exceeding size limit", async () => {
+      // Arrange
+      const request = testFixtures.oversizedImageRequest;
+
+      // Act
+      const res = await app.request("/v1/files", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+      });
+
+      // Assert
+      expect(res.status).toBe(400);
+      const data = await res.json();
+      expect(data.success).toBe(false);
+      expect(data.error).toContain("exceeds maximum allowed size");
+      expect(data.error).toContain("images");
+      expect(data.error).toContain("5.00MB");
     });
   });
 
