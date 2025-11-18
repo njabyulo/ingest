@@ -1,7 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { FileText, MoreVertical, Search, Settings, Trash2, Upload as UploadIcon } from "lucide-react";
+import { FileText, MoreVertical, Search, Settings, Trash2, Upload as UploadIcon, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type * as Types from "@ingest/shared/types";
 import { apiClient } from "@/lib/api";
 
@@ -18,6 +24,7 @@ export function FileList({ onUploadClick }: FileListProps) {
   const [nextCursor, setNextCursor] = useState<string | undefined>();
   const [sortBy, setSortBy] = useState<string>("name");
   const [pollingInterval, setPollingInterval] = useState<number | null>(null);
+  const [downloadingFileId, setDownloadingFileId] = useState<string | null>(null);
 
   const formatFileSize = (bytes: number): string => {
     if (bytes < 1024) return `${bytes} B`;
@@ -107,6 +114,20 @@ export function FileList({ onUploadClick }: FileListProps) {
       };
     }
   }, [files, loadFiles, pollingInterval]);
+
+  const handleDownload = useCallback(async (fileId: string, fileName: string) => {
+    try {
+      setDownloadingFileId(fileId);
+      const result = await apiClient.downloadFile(fileId, fileName);
+      if (!result.success) {
+        setError(result.error || "Failed to download file");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to download file");
+    } finally {
+      setDownloadingFileId(null);
+    }
+  }, []);
 
   const sortedFiles = [...files].sort((a, b) => {
     switch (sortBy) {
@@ -266,13 +287,30 @@ export function FileList({ onUploadClick }: FileListProps) {
                         />
                       </div>
                       {!isPending && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
-                        >
-                          <MoreVertical className="w-4 h-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8 p-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(file.id, file.name);
+                              }}
+                              disabled={downloadingFileId === file.id}
+                            >
+                              <Download className="w-4 h-4 mr-2" />
+                              {downloadingFileId === file.id ? "Downloading..." : "Download"}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       )}
                     </div>
                     <div className="space-y-1">
