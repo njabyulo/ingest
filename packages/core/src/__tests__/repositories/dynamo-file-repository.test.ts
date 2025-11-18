@@ -330,7 +330,7 @@ describe("DynamoFileRepository", () => {
         sizeBytes: 1024,
         status: "UPLOADED",
         s3Bucket: "test-bucket",
-        s3Key: "uploads/test-user/2024/01/15/test-file-id.pdf",
+        s3Key: "pdf/test-user/2024/01/15/test-file-id.pdf",
         createdAt: "2024-01-15T10:00:00.000Z",
         updatedAt: "2024-01-15T10:10:00.000Z",
         uploadedAt: "2024-01-15T10:10:00.000Z",
