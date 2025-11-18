@@ -13,8 +13,8 @@ vi.mock("@aws-sdk/s3-request-presigner", () => ({
 
 vi.mock("@ingest/shared/utils", () => ({
   Aws: {
-    generateS3Key: vi.fn((userId: string, fileId: string, _fileName: string) => 
-      `uploads/${userId}/2024/01/15/${fileId}.pdf`
+    generateS3Key: vi.fn((fileType: string, userId: string, fileId: string, _fileName: string) => 
+      `${fileType}/${userId}/2024/01/15/${fileId}.pdf`
     ),
     getAwsResourceTags: vi.fn(() => ({ Project: "ingest", Environment: "test" })),
     formatS3Tags: vi.fn(() => "Project=ingest&Environment=test"),
@@ -79,6 +79,60 @@ describe("PresignedUrlService", () => {
       expect(createFileCall.sizeBytes).toBe(request.fileSizeBytes);
     });
 
+    it("should generate presigned URL for valid JPEG image request", async () => {
+      // Arrange
+      vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
+      const request = testFixtures.validImageJpegRequest;
+
+      // Act
+      const result = await service.generateUploadUrl({
+        fileName: request.fileName,
+        contentType: request.mimeType,
+        size: request.fileSizeBytes,
+      });
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.fileId).toBeDefined();
+        expect(result.uploadUrl).toBe("https://s3-presigned-url.com/upload");
+        expect(result.expiresAt).toBeDefined();
+        expect(result.maxSizeBytes).toBe(Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES);
+        expect(result.method).toBe("PUT");
+      }
+
+      // Verify file was created in repository
+      expect(mockFileRepository.createFile).toHaveBeenCalledTimes(1);
+      const createFileCall = vi.mocked(mockFileRepository.createFile).mock.calls[0][0];
+      expect(createFileCall.status).toBe("PENDING_UPLOAD");
+      expect(createFileCall.mimeType).toBe("image/jpeg");
+      expect(createFileCall.sizeBytes).toBe(request.fileSizeBytes);
+    });
+
+    it("should generate presigned URL for valid PNG image request", async () => {
+      // Arrange
+      vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
+      const request = testFixtures.validImagePngRequest;
+
+      // Act
+      const result = await service.generateUploadUrl({
+        fileName: request.fileName,
+        contentType: request.mimeType,
+        size: request.fileSizeBytes,
+      });
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.maxSizeBytes).toBe(Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES);
+      }
+
+      // Verify file was created in repository
+      expect(mockFileRepository.createFile).toHaveBeenCalledTimes(1);
+      const createFileCall = vi.mocked(mockFileRepository.createFile).mock.calls[0][0];
+      expect(createFileCall.mimeType).toBe("image/png");
+    });
+
     it("should generate correct S3 key pattern", async () => {
       // Arrange
       vi.mocked(mockFileTypeDetector.detect).mockReturnValue("pdf");
@@ -93,6 +147,7 @@ describe("PresignedUrlService", () => {
 
       // Assert
       expect(Utils.Aws.generateS3Key).toHaveBeenCalledWith(
+        "pdf",
         "test-user",
         expect.any(String),
         request.fileName
@@ -100,10 +155,96 @@ describe("PresignedUrlService", () => {
     });
   });
 
-  describe("generateUploadUrl - Invalid MIME type", () => {
-    it("should reject non-PDF MIME types", async () => {
+  describe("generateUploadUrl - Image support", () => {
+    it("should generate presigned URL for valid JPEG image", async () => {
       // Arrange
       vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
+      const request = {
+        fileName: "photo.jpg",
+        mimeType: "image/jpeg",
+        fileSizeBytes: 2 * 1024 * 1024, // 2 MB
+      };
+
+      // Act
+      const result = await service.generateUploadUrl({
+        fileName: request.fileName,
+        contentType: request.mimeType,
+        size: request.fileSizeBytes,
+      });
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.fileId).toBeDefined();
+        expect(result.uploadUrl).toBe("https://s3-presigned-url.com/upload");
+        expect(result.maxSizeBytes).toBe(Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES);
+      }
+
+      // Verify file was created in repository
+      expect(mockFileRepository.createFile).toHaveBeenCalledTimes(1);
+      expect(Utils.Aws.generateS3Key).toHaveBeenCalledWith(
+        "image",
+        "test-user",
+        expect.any(String),
+        request.fileName
+      );
+    });
+
+    it("should generate presigned URL for valid PNG image", async () => {
+      // Arrange
+      vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
+      const request = {
+        fileName: "screenshot.png",
+        mimeType: "image/png",
+        fileSizeBytes: 3 * 1024 * 1024, // 3 MB
+      };
+
+      // Act
+      const result = await service.generateUploadUrl({
+        fileName: request.fileName,
+        contentType: request.mimeType,
+        size: request.fileSizeBytes,
+      });
+
+      // Assert
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.maxSizeBytes).toBe(Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES);
+      }
+    });
+
+    it("should reject oversized images", async () => {
+      // Arrange
+      vi.mocked(mockFileTypeDetector.detect).mockReturnValue("image");
+      const request = {
+        fileName: "large.jpg",
+        mimeType: "image/jpeg",
+        fileSizeBytes: 6 * 1024 * 1024, // 6 MB (exceeds 5 MB limit)
+      };
+
+      // Act
+      const result = await service.generateUploadUrl({
+        fileName: request.fileName,
+        contentType: request.mimeType,
+        size: request.fileSizeBytes,
+      });
+
+      // Assert
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("exceeds maximum allowed size");
+        expect(result.error).toContain("images");
+      }
+
+      // Verify file was NOT created in repository
+      expect(mockFileRepository.createFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("generateUploadUrl - Invalid MIME type", () => {
+    it("should reject unsupported MIME types", async () => {
+      // Arrange
+      vi.mocked(mockFileTypeDetector.detect).mockReturnValue("unknown");
       const request = testFixtures.invalidMimeTypeRequest;
 
       // Act
@@ -116,7 +257,7 @@ describe("PresignedUrlService", () => {
       // Assert
       expect(result.success).toBe(false);
       if (!result.success) {
-        expect(result.error).toContain("Only PDF files are supported");
+        expect(result.error).toContain("Unsupported file type");
       }
 
       // Verify file was NOT created in repository
@@ -146,15 +287,15 @@ describe("PresignedUrlService", () => {
     });
   });
 
-  describe("generateUploadUrl - Oversized file", () => {
-    it("should handle oversized files (validation happens in handler, but service should still work)", async () => {
-      // Note: File size validation happens in the API handler, not in the service
-      // The service will still generate a URL if the file type is valid
-      // This test verifies the service doesn't fail on large files
-      
+  describe("generateUploadUrl - File size validation", () => {
+    it("should reject oversized PDF files", async () => {
       // Arrange
       vi.mocked(mockFileTypeDetector.detect).mockReturnValue("pdf");
-      const request = testFixtures.oversizedPdfRequest;
+      const request = {
+        fileName: "large.pdf",
+        mimeType: "application/pdf",
+        fileSizeBytes: 11 * 1024 * 1024, // 11 MB (exceeds 10 MB limit)
+      };
 
       // Act
       const result = await service.generateUploadUrl({
@@ -163,9 +304,15 @@ describe("PresignedUrlService", () => {
         size: request.fileSizeBytes,
       });
 
-      // Assert - Service should still succeed (size validation is in handler)
-      expect(result.success).toBe(true);
-      expect(mockFileRepository.createFile).toHaveBeenCalled();
+      // Assert
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("exceeds maximum allowed size");
+        expect(result.error).toContain("PDFs");
+      }
+
+      // Verify file was NOT created in repository
+      expect(mockFileRepository.createFile).not.toHaveBeenCalled();
     });
   });
 
