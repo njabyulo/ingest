@@ -1,6 +1,7 @@
 # Misc
 ## Personal documentation
-docs/project/
+docs/project/*
+!docs/project/system-design.md
 docs/writings/
 
 # Test data and sample files
