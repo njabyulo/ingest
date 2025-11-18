@@ -157,9 +157,6 @@ export interface IApiFileMetadata {
   updatedAt?: string;
   uploadedAt?: string;
   error?: string;
-  // Legacy fields for backward compatibility
-  fileId?: string;
-  fileName?: string;
 }
 
 /**
