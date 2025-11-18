@@ -18,6 +18,7 @@ export type IUploadResponse = Types.File.IApiUploadResponse;
 export type IFileMetadataResponse = Types.File.IApiFileMetadata;
 export type IListFilesResponse = Types.File.IApiListFilesResponse;
 export type IApiFileListItem = Types.File.IApiFileListItem;
+export type IDownloadResponse = Types.File.IApiDownloadResponse;
 
 export class ApiClient {
   private baseUrl: string;
@@ -209,6 +210,69 @@ export class ApiClient {
     }
     
     return data;
+  }
+
+  /**
+   * Request a presigned download URL for a file
+   */
+  async requestDownloadUrl(fileId: string): Promise<IDownloadResponse> {
+    if (!this.baseUrl) {
+      return {
+        success: false,
+        error: "API URL is not configured. Please ensure VITE_API_URL is set.",
+      };
+    }
+
+    const response = await fetch(`${this.baseUrl}/v1/files/${fileId}/download`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      return {
+        success: false,
+        error: error.error || `HTTP ${response.status}: ${response.statusText}`,
+      };
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Download a file by fileId
+   * This will request a presigned URL and trigger the browser download
+   */
+  async downloadFile(fileId: string, fileName?: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const result = await this.requestDownloadUrl(fileId);
+
+      if (!result.success || !result.downloadUrl) {
+        return {
+          success: false,
+          error: result.error || "Failed to get download URL",
+        };
+      }
+
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement("a");
+      link.href = result.downloadUrl;
+      link.download = fileName || result.fileName || "download.pdf";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Failed to download file",
+      };
+    }
   }
 
   /**
