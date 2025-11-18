@@ -26,13 +26,20 @@ export const s3EventHandlerFunction = new sst.aws.Function("S3EventHandlerFuncti
 
 // Subscribe to S3 PutObject events
 // Use the function ARN instead of handler path for proper event subscription
+// Listen for type-based prefixes (pdf/, images/)
 Storage.S3.bucket.notify({
   notifications: [
     {
-      name: "FileUploadEvent",
+      name: "FileUploadEventPdf",
       function: s3EventHandlerFunction.arn,
       events: ["s3:ObjectCreated:Put"],
-      filterPrefix: "uploads/",
+      filterPrefix: "pdf/",
+    },
+    {
+      name: "FileUploadEventImages",
+      function: s3EventHandlerFunction.arn,
+      events: ["s3:ObjectCreated:Put"],
+      filterPrefix: "images/",
     },
   ],
 });
