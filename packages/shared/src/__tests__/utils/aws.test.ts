@@ -3,74 +3,112 @@ import * as Utils from "../../utils";
 
 describe("AWS Utils", () => {
   describe("generateS3Key", () => {
-    it("should generate S3 key with correct pattern", () => {
+    it("should generate S3 key with correct pattern for PDF", () => {
       // Arrange
+      const fileType = "pdf";
       const userId = "user-123";
       const fileId = "file-456";
       const fileName = "document.pdf";
       const now = new Date();
 
       // Act
-      const key = Utils.Aws.generateS3Key(userId, fileId, fileName);
+      const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
 
       // Assert
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, "0");
       const day = String(now.getDate()).padStart(2, "0");
-      const expectedPattern = `uploads/${userId}/${year}/${month}/${day}/${fileId}.pdf`;
+      const expectedPattern = `pdf/${userId}/${year}/${month}/${day}/${fileId}.pdf`;
       expect(key).toBe(expectedPattern);
     });
 
-    it("should extract file extension from fileName", () => {
+    it("should generate S3 key with correct pattern for images", () => {
       // Arrange
+      const fileType = "image";
       const userId = "user-123";
       const fileId = "file-456";
       const fileName = "image.jpg";
 
       // Act
-      const key = Utils.Aws.generateS3Key(userId, fileId, fileName);
+      const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
 
       // Assert
       expect(key).toContain(`${fileId}.jpg`);
-      expect(key).toContain("uploads/");
+      expect(key).toContain("images/");
+      expect(key).toMatch(/^images\/user-123\/\d{4}\/\d{2}\/\d{2}\/file-456\.jpg$/);
     });
 
-    it("should default to .pdf extension if fileName has no extension", () => {
+    it("should extract file extension from fileName", () => {
       // Arrange
+      const fileType = "image";
+      const userId = "user-123";
+      const fileId = "file-456";
+      const fileName = "image.jpg";
+
+      // Act
+      const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
+
+      // Assert
+      expect(key).toContain(`${fileId}.jpg`);
+      expect(key).toContain("images/");
+    });
+
+    it("should default to .pdf extension for PDF if fileName has no extension", () => {
+      // Arrange
+      const fileType = "pdf";
       const userId = "user-123";
       const fileId = "file-456";
       const fileName = "document";
 
       // Act
-      const key = Utils.Aws.generateS3Key(userId, fileId, fileName);
+      const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
 
       // Assert
       expect(key).toContain(`${fileId}.pdf`);
+      expect(key).toContain("pdf/");
+    });
+
+    it("should default to .jpg extension for images if fileName has no extension", () => {
+      // Arrange
+      const fileType = "image";
+      const userId = "user-123";
+      const fileId = "file-456";
+      const fileName = "image";
+
+      // Act
+      const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
+
+      // Assert
+      expect(key).toContain(`${fileId}.jpg`);
+      expect(key).toContain("images/");
     });
 
     it("should handle file names with multiple dots", () => {
       // Arrange
+      const fileType = "pdf";
       const userId = "user-123";
       const fileId = "file-456";
       const fileName = "my.document.final.pdf";
 
       // Act
-      const key = Utils.Aws.generateS3Key(userId, fileId, fileName);
+      const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
 
       // Assert
       expect(key).toContain(`${fileId}.pdf`);
       expect(key).not.toContain("my.document.final");
+      expect(key).toContain("pdf/");
     });
 
     it("should use current date for path segments", () => {
       // Arrange
+      const fileType = "pdf";
       const userId = "user-123";
       const fileId = "file-456";
       const fileName = "test.pdf";
       const beforeTime = new Date();
 
       // Act
-      const key = Utils.Aws.generateS3Key(userId, fileId, fileName);
+      const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
       const afterTime = new Date();
 
       // Assert
@@ -79,26 +117,28 @@ describe("AWS Utils", () => {
       const day = String(beforeTime.getDate()).padStart(2, "0");
       
       // Should match date from before or after (in case of clock tick)
-      const beforePattern = `uploads/${userId}/${year}/${month}/${day}/${fileId}.pdf`;
+      const beforePattern = `pdf/${userId}/${year}/${month}/${day}/${fileId}.pdf`;
       const afterYear = afterTime.getFullYear();
       const afterMonth = String(afterTime.getMonth() + 1).padStart(2, "0");
       const afterDay = String(afterTime.getDate()).padStart(2, "0");
-      const afterPattern = `uploads/${userId}/${afterYear}/${afterMonth}/${afterDay}/${fileId}.pdf`;
+      const afterPattern = `pdf/${userId}/${afterYear}/${afterMonth}/${afterDay}/${fileId}.pdf`;
       
       expect([beforePattern, afterPattern]).toContain(key);
     });
 
-    it("should handle different file extensions", () => {
+    it("should handle different file extensions for images", () => {
       // Arrange
+      const fileType = "image";
       const userId = "user-123";
       const fileId = "file-456";
-      const extensions = [".png", ".jpg", ".txt", ".zip"];
+      const extensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"];
 
       // Act & Assert
       extensions.forEach((ext) => {
         const fileName = `file${ext}`;
-        const key = Utils.Aws.generateS3Key(userId, fileId, fileName);
+        const key = Utils.Aws.generateS3Key(fileType, userId, fileId, fileName);
         expect(key).toContain(`${fileId}${ext}`);
+        expect(key).toContain("images/");
       });
     });
   });
