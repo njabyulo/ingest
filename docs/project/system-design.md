@@ -27,12 +27,16 @@ Developers who need a simple, reusable backend to ingest files into their apps: 
 **Q: What does v1 support?**
 
 - Presigned URL flow via `POST /v1/files`
-- PDF-only uploads (application/pdf)
-- File size validation (10 MB max)
-- S3 storage with date-organized keys
-- DynamoDB metadata persistence
-- Automatic status updates via S3 events
-- File listing and metadata retrieval
+- PDF-only uploads in backend API (application/pdf) - frontend UI supports PDF, JPEG, PNG
+- File size validation (10 MB max for PDFs, 5 MB for images in frontend)
+- S3 storage with type-based prefixes: `pdf/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf` or `images/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}`
+- DynamoDB metadata persistence with GSIs
+- Automatic status updates via S3 events (`PENDING_UPLOAD` → `UPLOADED`)
+- File listing with pagination and cursor-based navigation
+- File metadata retrieval (`GET /v1/files/{fileId}`)
+- File download via presigned URLs (`GET /v1/files/{fileId}/download`)
+- Real-time upload progress tracking in web UI
+- Automatic status polling for pending uploads
 
 **Q: Why presigned URLs instead of direct upload to the API?**
 
@@ -119,11 +123,18 @@ Lifecycle policies can transition older objects to cheaper storage classes later
 
 **Client (React Web App)**
 
-- React + Vite frontend with drag-and-drop file upload
-- Real-time progress tracking using XMLHttpRequest
+- React 19 + Vite frontend with feature-based architecture
+- Direct file selector (no dialog) - opens immediately on upload click
+- Real-time progress tracking using XMLHttpRequest with toast notifications (Sonner)
 - Calls `POST /v1/files` to request presigned URL
 - Uploads directly to S3 using presigned URL
-- Polls `GET /v1/files/{fileId}` to check upload status
+- Automatic status polling (2s interval) for pending files
+- File list with pagination, sorting (name/date/size), and download
+- Feature-based component structure:
+  - `features/files/` - File listing, sorting, polling, download
+  - `features/upload/` - File upload with validation and progress
+- Shared components: ErrorBoundary, LoadingState, EmptyState, ErrorState
+- Layout components: SideBar, Wrapper
 
 **Edge/API Layer (SST + API Gateway + Lambda)**
 
@@ -133,9 +144,10 @@ Lifecycle policies can transition older objects to cheaper storage classes later
     - Calling application services (DI)
     - Error handling and HTTP response mapping
 - Routes:
-    - `POST /v1/files` - Request presigned URL
-    - `GET /v1/files` - List files with pagination
+    - `POST /v1/files` - Request presigned URL (PDF only in v1)
+    - `GET /v1/files` - List files with pagination (`?limit={limit}&cursor={cursor}`)
     - `GET /v1/files/{fileId}` - Get file metadata
+    - `GET /v1/files/{fileId}/download` - Get presigned download URL
 
 **Application Layer (TypeScript services)**
 
@@ -194,7 +206,7 @@ Lifecycle policies can transition older objects to cheaper storage classes later
 
 - `PresignedUrlService.generateUploadUrl()`:
     - Generates `fileId` (UUID)
-    - Generates S3 key: `uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf`
+    - Generates S3 key: `pdf/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf` or `images/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}`
     - Creates DynamoDB metadata record with status `PENDING_UPLOAD`
     - Sets TTL for automatic cleanup of expired uploads
     - Creates presigned PUT URL (5-minute expiry by default)
@@ -210,7 +222,7 @@ Lifecycle policies can transition older objects to cheaper storage classes later
 
 - S3 emits `ObjectCreated:Put` event
 - Lambda worker receives S3 event:
-    - Extracts fileId from S3 key pattern: `uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf`
+    - Extracts fileId from S3 key pattern: `{type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}`
     - Looks up file record using `getFileById` (GSI query) or `getFile` (fallback)
     - Updates DynamoDB status from `PENDING_UPLOAD` → `UPLOADED`
     - Sets `uploadedAt` timestamp
@@ -264,7 +276,7 @@ Lifecycle policies can transition older objects to cheaper storage classes later
     {
       "success": true,
       "fileId": "550e8400-e29b-41d4-a716-446655440000",
-      "uploadUrl": "https://bucket.s3.amazonaws.com/uploads/...",
+      "uploadUrl": "https://bucket.s3.amazonaws.com/pdf/...",
       "expiresAt": "2024-01-15T10:05:00.000Z",
       "maxSizeBytes": 10485760,
       "method": "PUT"
@@ -325,9 +337,11 @@ Lifecycle policies can transition older objects to cheaper storage classes later
 ### S3 Layout
 
 - Bucket: `IngestBucket` (provisioned via SST)
-- Key pattern: `uploads/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf`
-    - Organized by user and date for easy querying and lifecycle management
-    - Example: `uploads/default-user/2024/01/15/550e8400-e29b-41d4-a716-446655440000.pdf`
+- Key pattern: `{type}/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{extension}` where `{type}` is `pdf` or `images`
+    - Organized by type, user and date for easy querying and lifecycle management
+    - Extension extracted from original filename
+    - Example: `pdf/default-user/2024/01/15/550e8400-e29b-41d4-a716-446655440000.pdf`
+    - Example: `images/default-user/2024/01/15/550e8400-e29b-41d4-a716-446655440000.jpg`
 - Files are private (no public access)
 - S3 object metadata includes: `originalFileName`, `fileSize`
 
@@ -439,23 +453,30 @@ infra/
 - ✅ S3 event worker for status updates (`PENDING_UPLOAD` → `UPLOADED`)
 - ✅ `GET /v1/files/{fileId}` endpoint (optimized with GSI)
 - ✅ `GET /v1/files` endpoint (pagination with cursor)
-- ✅ File type detection (PDF only)
+- ✅ `GET /v1/files/{fileId}/download` endpoint (presigned download URLs)
+- ✅ File type detection (PDF only in backend API)
 - ✅ Size validation (10 MB max for PDFs)
-- ✅ S3 storage with date-organized keys
+- ✅ S3 storage with type-based prefixes (`pdf/{userId}/{yyyy}/{mm}/{dd}/{fileId}.pdf` or `images/{userId}/{yyyy}/{mm}/{dd}/{fileId}.{ext}`)
 - ✅ Shared package structure with namespace exports
 - ✅ TypeScript interfaces for all services
 - ✅ Dead Letter Queue for failed S3 events
 - ✅ DynamoDB TTL for automatic cleanup of expired uploads
-- ✅ React + Vite frontend with real-time upload progress
+- ✅ React + Vite frontend with feature-based architecture
+- ✅ Real-time upload progress tracking (XMLHttpRequest)
+- ✅ Toast notifications (Sonner) for upload feedback
+- ✅ File list with pagination, sorting, and polling
+- ✅ Automatic status polling for pending uploads
+- ✅ File download functionality
 - ✅ Infrastructure refactoring (domain-based organization)
+- ✅ Monorepo with catalog-based dependency management
 
 **v2 (Future)**:
-- ⏳ Image support (JPEG, PNG, etc.)
+- ⏳ Image support in backend API (JPEG, PNG - frontend already supports)
 - ⏳ PDF text extraction
 - ⏳ Search APIs
 - ⏳ User authentication and authorization
-- ⏳ File download endpoints
 - ⏳ Batch upload support
+- ⏳ File deletion endpoints
 
 ---
 
