@@ -5,34 +5,6 @@
 
 declare module "sst" {
   export interface Resource {
-    "FilesTable": {
-      "name": string
-      "type": "sst.aws.Dynamo"
-    }
-    "IngestApi": {
-      "type": "sst.aws.ApiGatewayV2"
-      "url": string
-    }
-    "IngestBucket": {
-      "name": string
-      "type": "sst.aws.Bucket"
-    }
-    "S3EventDlq": {
-      "type": "sst.aws.Queue"
-      "url": string
-    }
-    "S3EventHandlerFunction": {
-      "name": string
-      "type": "sst.aws.Function"
-    }
-    "UploadRequestFunction": {
-      "name": string
-      "type": "sst.aws.Function"
-    }
-    "Web": {
-      "type": "sst.aws.StaticSite"
-      "url": string
-    }
   }
 }
 /// <reference path="sst-env.d.ts" />
