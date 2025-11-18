@@ -69,25 +69,50 @@ app.post("/v1/files", async (c) => {
       );
     }
 
-    // Validate MIME type: Only application/pdf allowed in v1
-    if (mimeType !== "application/pdf") {
+    // Detect file type
+    const fileType = fileTypeDetector.detect(mimeType, fileName);
+
+    // Validate file type is supported
+    if (fileType === "unknown") {
       return c.json(
         {
           success: false,
-          error: `Only application/pdf files are allowed in v1. Received: ${mimeType}`,
+          error: `Unsupported file type: ${mimeType}. Supported types: PDF, JPEG, PNG`,
         },
         400,
       );
     }
 
-    // Validate file size
-    if (fileSizeBytes > Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES) {
-      const maxSizeMB = (Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES / (1024 * 1024)).toFixed(2);
-      const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+    // Validate MIME type is in allowed list
+    const allowedTypes = [
+      ...Constants.File.FILE_CONSTANTS.ALLOWED_PDF_TYPES,
+      ...Constants.File.FILE_CONSTANTS.ALLOWED_IMAGE_TYPES,
+    ];
+    const normalizedMimeType = mimeType.toLowerCase();
+    if (!allowedTypes.some((type) => type.toLowerCase() === normalizedMimeType)) {
       return c.json(
         {
           success: false,
-          error: `File size ${fileSizeMB}MB exceeds maximum allowed size of ${maxSizeMB}MB`,
+          error: `Unsupported MIME type: ${mimeType}. Supported types: ${allowedTypes.join(", ")}`,
+        },
+        400,
+      );
+    }
+
+    // Validate file size based on type
+    const maxSizeBytes =
+      fileType === "pdf"
+        ? Constants.File.FILE_CONSTANTS.MAX_PDF_SIZE_BYTES
+        : Constants.File.FILE_CONSTANTS.MAX_IMAGE_SIZE_BYTES;
+
+    if (fileSizeBytes > maxSizeBytes) {
+      const maxSizeMB = (maxSizeBytes / (1024 * 1024)).toFixed(2);
+      const fileSizeMB = (fileSizeBytes / (1024 * 1024)).toFixed(2);
+      const typeLabel = fileType === "pdf" ? "PDFs" : "images";
+      return c.json(
+        {
+          success: false,
+          error: `File size ${fileSizeMB}MB exceeds maximum allowed size of ${maxSizeMB}MB for ${typeLabel}`,
         },
         400,
       );
