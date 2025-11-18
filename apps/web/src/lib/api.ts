@@ -12,37 +12,12 @@ if (!API_URL) {
   );
 }
 
-export interface IUploadRequest {
-  fileName: string;
-  mimeType: string;
-  fileSizeBytes: number;
-}
-
-export interface IUploadResponse {
-  success: boolean;
-  fileId?: string;
-  uploadUrl?: string;
-  expiresAt?: string;
-  maxSizeBytes?: number;
-  method?: string;
-  error?: string;
-}
-
-export interface IFileMetadataResponse {
-  success: boolean;
-  id?: string; // fileId (renamed to match API response)
-  name?: string; // fileName (renamed to match API response)
-  mimeType?: string;
-  sizeBytes?: number;
-  status?: Types.File.TFileStatus;
-  createdAt?: string;
-  updatedAt?: string;
-  uploadedAt?: string;
-  error?: string;
-  // Legacy fields for backward compatibility
-  fileId?: string;
-  fileName?: string;
-}
+// Re-export types from shared for convenience
+export type IUploadRequest = Types.File.IApiUploadRequest;
+export type IUploadResponse = Types.File.IApiUploadResponse;
+export type IFileMetadataResponse = Types.File.IApiFileMetadata;
+export type IListFilesResponse = Types.File.IApiListFilesResponse;
+export type IApiFileListItem = Types.File.IApiFileListItem;
 
 export class ApiClient {
   private baseUrl: string;
@@ -153,6 +128,45 @@ export class ApiClient {
         error: error instanceof Error ? error.message : "Unknown upload error",
       };
     }
+  }
+
+  /**
+   * List files for the current user with pagination
+   * Query parameters: limit (default 20, max 100), cursor (optional)
+   * Returns: files array, nextCursor (if more results exist)
+   */
+  async listFiles(limit: number = 20, cursor?: string): Promise<IListFilesResponse> {
+    if (!this.baseUrl) {
+      return {
+        success: false,
+        error: "API URL is not configured. Please ensure VITE_API_URL is set.",
+      };
+    }
+
+    const params = new URLSearchParams();
+    params.append("limit", limit.toString());
+    if (cursor) {
+      params.append("cursor", cursor);
+    }
+
+    const response = await fetch(`${this.baseUrl}/v1/files?${params.toString()}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({
+        error: `HTTP ${response.status}: ${response.statusText}`,
+      }));
+      return {
+        success: false,
+        error: error.error || `HTTP ${response.status}: ${response.statusText}`,
+      };
+    }
+
+    return await response.json();
   }
 
   /**

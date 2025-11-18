@@ -103,3 +103,100 @@ export interface IFileRepository {
   deleteExpiredPendingFiles(expiredBefore: string): Promise<number>; // Returns count of deleted files
 }
 
+// API Request/Response Types (for HTTP API endpoints)
+
+/**
+ * Request body for POST /v1/files (presigned URL request)
+ * Uses fileSizeBytes and mimeType to match API contract
+ */
+export interface IApiUploadRequest {
+  fileName: string;
+  mimeType: string;
+  fileSizeBytes: number;
+}
+
+/**
+ * Response from POST /v1/files (presigned URL response)
+ */
+export interface IApiUploadResponse {
+  success: boolean;
+  fileId?: string;
+  uploadUrl?: string;
+  expiresAt?: string;
+  maxSizeBytes?: number;
+  method?: string;
+  error?: string;
+}
+
+/**
+ * File metadata in API response format (uses id/name instead of fileId/fileName)
+ * Response from GET /v1/files/:fileId
+ */
+export interface IApiFileMetadata {
+  success: boolean;
+  id?: string;
+  name?: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  status?: TFileStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  uploadedAt?: string;
+  error?: string;
+  // Legacy fields for backward compatibility
+  fileId?: string;
+  fileName?: string;
+}
+
+/**
+ * File item in list response format (uses id/name instead of fileId/fileName)
+ * Used in GET /v1/files response
+ */
+export interface IApiFileListItem {
+  id: string;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  status: TFileStatus;
+  createdAt: string;
+  updatedAt: string;
+  uploadedAt?: string;
+}
+
+/**
+ * Response from GET /v1/files (list files with pagination)
+ */
+export interface IApiListFilesResponse {
+  success: boolean;
+  files?: IApiFileListItem[];
+  nextCursor?: string;
+  error?: string;
+}
+
+/**
+ * Common error response format
+ */
+export interface IApiErrorResponse {
+  success: false;
+  error: string;
+}
+
+// UI-specific types (for frontend state management)
+
+/**
+ * File upload status for UI state tracking
+ */
+export type TFileUploadStatus = "pending" | "uploading" | "completed" | "error";
+
+/**
+ * File item in upload dialog state
+ */
+export interface IFileUploadItem {
+  id: string;
+  file: File;
+  status: TFileUploadStatus;
+  progress: number;
+  fileId?: string;
+  error?: string;
+}
+
