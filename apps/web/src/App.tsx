@@ -27,7 +27,7 @@ function App() {
           onChange={handleFileSelect}
           multiple
           className="hidden"
-        />
+      />
       </Wrapper>
       <Toaster />
     </ErrorBoundary>
